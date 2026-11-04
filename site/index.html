@@ -23,20 +23,19 @@
   <section class="hero">
     <div class="hero-text">
       <h1>Regulatory Affairs &amp; Quality jobs, matched to your résumé</h1>
-      <p>Openings come straight from employers' own career sites and are refreshed daily. Your résumé is read
-        <strong>in your browser</strong>. It is never uploaded or stored.</p>
+      <p>Openings straight from employers' own career sites. Your résumé stays <strong>in your browser</strong>
+        and is never uploaded.</p>
     </div>
     <div class="upload card">
       <label class="drop" id="drop">
         <input type="file" id="file" accept=".pdf,.docx,.txt" hidden>
         <span class="drop-title">Drop your résumé here</span>
-        <span class="drop-sub">PDF, DOCX or TXT, or <button type="button" class="link" id="pasteBtn">paste text</button></span>
+        <span class="drop-sub">or click to choose a PDF, DOCX or TXT</span>
       </label>
-      <textarea id="paste" placeholder="Paste your résumé text…" hidden></textarea>
-      <div class="upload-row">
-        <label>Years of experience <input type="number" id="years" min="0" max="40" step="0.5"></label>
+      <button type="button" class="link small" id="pasteBtn">Paste text instead</button>
+      <div id="pasteBox" hidden>
+        <textarea id="paste" placeholder="Paste your résumé text…"></textarea>
         <button type="button" id="matchBtn" class="btn" disabled>Match me</button>
-        <button type="button" id="clearBtn" class="btn ghost" hidden>Clear</button>
       </div>
       <div class="status" id="status" aria-live="polite"></div>
     </div>
@@ -58,9 +57,8 @@
         <select id="age"><option value="7">7 days</option><option value="14">14 days</option>
           <option value="30">30 days</option><option value="45" selected>45 days</option></select></label>
       <label class="check"><input type="checkbox" id="remote"> Remote only</label>
-      <label class="check"><input type="checkbox" id="h1b"> H-1B track record only</label>
-      <p class="hint">H-1B track record means the employer filed H-1B applications (LCAs) for RA/QA roles in
-        FY2024–26 (U.S. Department of Labor data), or is a university or hospital, which may be cap-exempt.</p>
+      <label class="check" title="Employer filed H-1B applications (LCAs) for RA/QA roles in FY2024–26 (U.S. Dept. of Labor data), or is a university or hospital (may be cap-exempt)">
+        <input type="checkbox" id="h1b"> H-1B sponsors only</label>
     </aside>
 
     <section class="results">

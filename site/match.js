@@ -132,9 +132,8 @@
       .filter(([, n]) => n >= Math.max(2, near.length * 0.12));
     if (gaps.length) out.push({
       kind: "skills",
-      title: "Terms your closest matches ask for",
-      body: "These come up often in jobs just below or near your strong matches, and your résumé doesn't mention them. " +
-        "If you have this experience, name it in plain words. Applicant tracking systems match on the exact term.",
+      title: "Add these if you have them",
+      body: "Your near-matches keep asking for these, but your résumé doesn't name them. ATS filters match exact words.",
       chips: gaps.map(([id, n]) => ({ label: ctx.byId[id].label, n, of: near.length })),
     });
 
@@ -143,34 +142,34 @@
       if (filters.families.has(fam) && (profile.affinity[fam] || 0) >= 0.5) continue;
       const n = all.filter((j) => j.family === fam && fits(j)).length;
       if (n >= 3 && (profile.affinity[fam] || 0) < 0.5) out.push({
-        kind: "family", title: `${n} ${label} roles also fit`,
-        body: `Your skills overlap with ${label} postings. Search for those titles too, and use the same keywords in your headline.`,
+        kind: "family", title: `${n} ${label} roles fit you too`,
+        body: "Search those titles as well.",
       });
     }
 
     // 3. Senior titles within reach.
     const senior = jobs.filter((j) => j.seniority === "senior" && j.years != null && j.years <= profile.years && fits(j));
     if (senior.length >= 2) out.push({
-      kind: "level", title: `${senior.length} "Senior" roles ask for no more than your ${profile.years} years`,
-      body: "Don't rule out a posting because of its title. Go by the years and skills it actually asks for.",
+      kind: "level", title: `${senior.length} "Senior" roles need ${profile.years} years or less`,
+      body: "Go by the years asked, not the title.",
     });
 
     // 4. Location / remote.
     if (filters.state) {
       const elsewhere = all.filter((j) => j.state !== filters.state && fits(j)).length;
       if (elsewhere) out.push({ kind: "location", title: `${elsewhere} more matches outside ${filters.state}`,
-        body: "Relocation-friendly employers, especially large manufacturers, often post in several states. Try a nearby state or turn on remote." });
+        body: "Try a nearby state or remote." });
     }
     if (filters.remote) {
       const onsite = all.filter((j) => !j.remote && fits(j)).length;
-      if (onsite) out.push({ kind: "location", title: `${onsite} on-site or hybrid matches hidden`,
-        body: "Most RA/QA work at manufacturers is on-site. Turning off remote-only greatly widens the pool." });
+      if (onsite) out.push({ kind: "location", title: `${onsite} on-site matches hidden`,
+        body: "Most RA/QA roles are on-site. Turn off remote-only to see them." });
     }
 
     // 5. Sponsorship.
     const sponsorStrong = shown.filter(hasSponsorTrack).length;
-    if (!filters.h1b && sponsorStrong) out.push({ kind: "visa", title: `${sponsorStrong} of your matches have an H-1B track record`,
-      body: "If you need sponsorship, turn on \"H-1B track record only\". Universities and hospitals can file cap-exempt H-1Bs year-round." });
+    if (!filters.h1b && sponsorStrong) out.push({ kind: "visa", title: `${sponsorStrong} matches have an H-1B record`,
+      body: "Need sponsorship? Turn on the H-1B filter." });
 
     // 6. Industry carry-over.
     const ind = ctx.terms.filter((t) => t.cat === "industry");
@@ -179,8 +178,8 @@
       for (const t of ind) {
         if (yours.includes(t.id) || t.id === "clinical") continue;
         const n = all.filter((j) => j.terms.includes(t.id) && !j.terms.some((x) => yours.includes(x)) && fits(j)).length;
-        if (n >= 3) { out.push({ kind: "industry", title: `Your skills carry over to ${t.label.toLowerCase()} (${n} matches)`,
-          body: "QMS, CAPA and audit experience transfer across regulated industries. In your summary, state the frameworks you know (e.g. GMP, ISO)." }); break; }
+        if (n >= 3) { out.push({ kind: "industry", title: `${n} matches in ${t.label.toLowerCase()}`,
+          body: "QMS, CAPA and audit skills carry over." }); break; }
       }
     }
     return out;

@@ -46,9 +46,12 @@ h3 { font-size: .95rem; }
 .drop-sub { color: var(--muted); font-size: .85rem; }
 textarea { width: 100%; min-height: 140px; margin-top: 10px; padding: 10px; font: inherit; font-size: .85rem;
   border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); resize: vertical; }
-.upload-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-.upload-row label { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-right: auto; }
-.upload-row input { width: 70px; }
+#pasteBtn { margin-top: 10px; }
+#pasteBox .btn { margin-top: 8px; }
+.matched .hero { display: none; }
+.matched main { padding-top: 20px; }
+input.inline { width: 64px; padding: 2px 6px; display: inline; }
+.muted-link { color: var(--muted); margin-left: 10px; }
 .status { font-size: .85rem; color: var(--muted); min-height: 1.2em; margin-top: 6px; }
 .status.bad { color: var(--gap); }
 
@@ -63,11 +66,13 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
 .link.small { font-size: .8rem; }
 
 .profile, .tips { padding: 16px; margin-bottom: 16px; }
-.profile p { margin: 0 0 8px; }
-.tip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.tip { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--bg); }
-.tip p { margin: 0 0 6px; font-size: .85rem; color: var(--muted); }
-.tip-skills { grid-column: 1 / -1; }
+.profile { padding: 12px 16px; }
+.profile p { margin: 0; }
+.profile .chips { margin-top: 10px; }
+.tip-list { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 8px; }
+.tip { font-size: .9rem; }
+.tip .muted { font-size: .85rem; }
+.tip .chips { margin-top: 6px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-size: .78rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
@@ -93,14 +98,19 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
 .tabs .count { margin: 0; }
 
 .jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.job { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; padding: 14px 16px; align-items: start; }
-.job:not(:has(.score)) { grid-template-columns: 1fr auto; }
+.job { display: grid; grid-template-columns: auto 1fr; gap: 14px; padding: 12px 16px; align-items: start; }
+.job:not(:has(.score)) { grid-template-columns: 1fr; }
+.job-meta { font-size: .8rem; color: var(--muted); }
+.job-meta a { color: var(--muted); }
+.job-meta a:hover { color: var(--accent); }
+.fit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: .78rem; }
+.fit .chip { font-size: .72rem; }
 .score { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .95rem;
   border: 2px solid currentColor; }
 .score.hi { color: var(--hi); } .score.mid { color: var(--mid); } .score.lo { color: var(--lo); }
 .job-title { font-weight: 600; font-size: 1rem; text-decoration: none; color: var(--ink); }
 .job-title:hover { color: var(--accent); text-decoration: underline; }
-.job-sub { font-size: .87rem; color: var(--muted); margin: 2px 0 6px; }
+.job-sub { font-size: .87rem; color: var(--muted); margin: 2px 0; }
 .job-sub strong { color: var(--ink); font-weight: 600; }
 .remote { color: var(--accent); font-weight: 600; }
 .badges { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -108,7 +118,6 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
 .badge.fam { color: var(--ink); }
 .badge.visa { color: var(--accent); border-color: var(--accent); }
 .badge.visa.soft { border-style: dashed; }
-.job-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; text-align: right; }
 .empty { padding: 32px; text-align: center; color: var(--muted); }
 .more { margin: 14px auto 0; display: block; }
 .foot { color: var(--muted); font-size: .8rem; padding: 20px 16px 40px; border-top: 1px solid var(--line); }
@@ -117,6 +126,5 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
   .hero { grid-template-columns: 1fr; padding-top: 20px; }
   .layout { grid-template-columns: 1fr; }
   .filters { position: static; }
-  .job, .job:not(:has(.score)) { grid-template-columns: auto 1fr; }
-  .job-actions { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; }
 }
+.job-sub .badge { margin-left: 4px; vertical-align: 1px; }
