@@ -6,8 +6,41 @@
   const LEVELS = { entry: "Entry", mid: "Mid", senior: "Senior", manager: "Manager / Lead", director: "Director+" };
   const US = /^(?:us|usa|united states(?: of america)?)$/i;
   const GENERIC = new Set(["fda", "audit", "sop"]); // nearly every posting has these; not worth a chip
+  const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
+  const SEMANTIC_ON = '<span class="sem on" title="Keyword and word-overlap match blended with meaning-based similarity, computed in your browser">· AI matching on</span>';
   const S = { ctx: null, jobs: [], labels: {}, profile: null, scores: null, tab: "all", limit: PAGE,
-    text: "", years: null, showSkills: false, showAllTips: false };
+    text: "", years: null, showSkills: false, showAllTips: false, sims: null, simsText: "", semantic: null, semRun: 0,
+    lex: null, lexSims: null, lexText: "", newIds: new Set(), hasPrevVisit: false };
+
+  // ---------- this browser's own lists (localStorage; nothing leaves the browser) ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("rqa." + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("rqa." + k, JSON.stringify(v)); } catch { /* private mode: lists last this visit */ } },
+  };
+  // mine: {job_id: {status: "saved" | "applied", at: ISO date, job: {title, company, url, location}}}
+  const MY = { mine: store.get("mine", {}), hidden: new Set(store.get("hiddenJobs", [])),
+    hiddenCo: new Set(store.get("hiddenCompanies", [])) };
+  const coKey = (c) => String(c || "").trim().toLowerCase();
+  const isHidden = (j) => MY.hidden.has(j.id) || MY.hiddenCo.has(coKey(j.company));
+  function saveMine() {
+    store.set("mine", MY.mine);
+    store.set("hiddenJobs", [...MY.hidden]);
+    store.set("hiddenCompanies", [...MY.hiddenCo]);
+  }
+
+  // "New since your last visit": job ids seen on the previous visit (a visit = 6+ hours after the last one).
+  const VISIT_GAP = 6 * 3600e3;
+  function trackVisit(ids) {
+    const v = store.get("visits", null);
+    let prev = null;
+    if (!v) store.set("visits", { prev: null, cur: ids, at: Date.now() });
+    else if (Date.now() - v.at > VISIT_GAP) { prev = v.cur; store.set("visits", { prev: v.cur, cur: ids, at: Date.now() }); }
+    else prev = v.prev;
+    if (!prev) return;
+    const seen = new Set(prev);
+    S.hasPrevVisit = true;
+    S.newIds = new Set(ids.filter((id) => !seen.has(id)));
+  }
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const daysAgo = (d) => Math.max(0, Math.round((Date.now() - new Date(d + "T12:00:00")) / 864e5));
@@ -18,6 +51,7 @@
       fetch("jobs.json", { cache: "no-cache" }).then((r) => r.json()),
     ]);
     S.jobs = data.jobs;
+    trackVisit(S.jobs.map((j) => j.id));
     S.ctx = Match.compile(vocab, S.jobs);
     S.labels = Object.fromEntries(vocab.families.map((f) => [f.id, f.label]));
     $("meta").textContent = `${data.count.toLocaleString()} open roles · updated ${new Date(data.generated).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
@@ -28,10 +62,15 @@
     const states = [...new Set(S.jobs.map((j) => j.state).filter(Boolean))].sort();
     $("state").insertAdjacentHTML("beforeend", states.map((s) => `<option>${s}</option>`).join(""));
 
+    $("newCount").textContent = S.newIds.size;
+    $("newOnlyBox").hidden = !S.hasPrevVisit;
+    $("entryCount").textContent = S.jobs.filter(isEntry).length;
+
     document.querySelectorAll(".filters input, .filters select").forEach((el) =>
       el.addEventListener(el.type === "search" ? "input" : "change", () => { S.limit = PAGE; render(); }));
     wireUpload();
     render();
+    loadLexical();
   }
 
   // ---------- résumé input ----------
@@ -92,7 +131,8 @@
     const first = !S.profile;
     S.profile = Match.analyzeResume(S.ctx, S.text);
     if (S.years != null) S.profile.years = S.years;
-    S.scores = Match.scoreAll(S.ctx, S.profile);
+    applySignals();
+    if (!(S.sims && S.simsText === S.text)) refineSemantic();   // a years edit reuses the similarities
     S.tab = "strong"; S.limit = PAGE;
     document.body.classList.add("matched");
     status("");
@@ -101,8 +141,81 @@
     if (first) $("profile").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  // Keyword scores blended with TF-IDF and (once the model has loaded) embedding similarity.
+  function applySignals() {
+    S.scores = Match.scoreAll(S.ctx, S.profile);
+    if (S.lex && S.lexText !== S.text) Object.assign(S, { lexSims: Match.lexicalSims(S.lex, S.text), lexText: S.text });
+    Match.blendSignals(S.scores, { lexical: S.lexText === S.text ? S.lexSims : null,
+      semantic: S.simsText === S.text ? S.sims : null });
+  }
+
+  // TF-IDF index (~5 MB, no model): loads with the page, so it is normally ready before a résumé is.
+  function loadLexical() {
+    Promise.all([fetch("lexical.json").then((r) => r.json()), fetch("lexical.bin").then((r) => r.arrayBuffer())])
+      .then(([meta, buf]) => {
+        S.lex = Match.loadLexical(meta, buf);
+        if (S.profile) { applySignals(); render(); }
+      })
+      .catch((err) => console.error(err));             // keyword (+ semantic) matching still works
+  }
+
+  // ---------- semantic layer: keyword results show at once, then the model refines them ----------
+  // Download progress, summed over the model's files; only the note's text is updated, not the page.
+  const dl = new Map();
+  let dlShown = 0;
+  function onModelProgress(e) {
+    if (e.status === "progress" && e.total) dl.set(e.file, [e.loaded, e.total]);
+    if (Date.now() - dlShown < 250) return;
+    dlShown = Date.now();
+    const el = document.querySelector("#profile .sem");
+    if (el && S.semantic === "loading") el.textContent = loadingText();
+  }
+  function loadingText() {
+    let loaded = 0, total = 0;
+    for (const [l, t] of dl.values()) { loaded += l; total += t; }
+    const mb = (x) => Math.round(x / 1e6);
+    return total > 5e6 && loaded < total
+      ? `· improving scores with AI · ${mb(loaded)} of ${mb(total)} MB (one-time download)`
+      : "· improving scores with AI…";
+  }
+
+  let semantic = null;
+  function loadSemantic() {
+    semantic = semantic || Promise.all([
+      import(TRANSFORMERS),
+      fetch("vectors.json").then((r) => r.json()),
+      fetch("vectors.bin").then((r) => r.arrayBuffer()),
+    ]).then(async ([tf, meta, buf]) => ({
+      meta, rows: new Int16Array(buf),
+      embed: await tf.pipeline("feature-extraction", meta.model, { dtype: "q8", progress_callback: onModelProgress }),
+    }));
+    semantic.catch(() => { semantic = null; });       // allow a retry on the next résumé
+    return semantic;
+  }
+
+  async function refineSemantic() {
+    const run = ++S.semRun, text = S.text;
+    S.sims = null; S.semantic = "loading";
+    try {
+      const sem = await loadSemantic();
+      const vecs = (await sem.embed(Match.chunks(text), { pooling: "mean", normalize: true })).tolist();
+      const sims = new Map();
+      for (const [id, [first, count]] of Object.entries(sem.meta.index))
+        sims.set(id, Match.maxSim(vecs, sem.rows, first, count, sem.meta.dim));
+      if (run !== S.semRun || !S.scores) return;                // résumé changed or cleared meanwhile
+      Object.assign(S, { sims, simsText: text, semantic: "on" });
+      applySignals();
+    } catch (err) {
+      console.error(err);
+      if (run !== S.semRun) return;
+      S.semantic = "off";
+    }
+    if (S.profile) { renderProfile(); render(); }
+  }
+
   function clearResume() {
-    Object.assign(S, { profile: null, scores: null, text: "", years: null, tab: "all", limit: PAGE, showSkills: false, showAllTips: false });
+    Object.assign(S, { profile: null, scores: null, text: "", years: null, tab: "all", limit: PAGE, showSkills: false,
+      showAllTips: false, sims: null, simsText: "", lexSims: null, lexText: "", semantic: null, semRun: S.semRun + 1 });
     $("paste").value = ""; $("pasteBox").hidden = true; $("pasteBtn").hidden = false; $("file").value = "";
     $("matchBtn").disabled = true;
     $("profile").hidden = true; $("tips").hidden = true;
@@ -119,12 +232,17 @@
       q: $("q").value.trim().toLowerCase(),
       families: new Set([...document.querySelectorAll("#families input:checked")].map((i) => i.value)),
       level: $("level").value, state: $("state").value, age: +$("age").value,
-      remote: $("remote").checked, h1b: $("h1b").checked,
+      remote: $("remote").checked, h1b: $("h1b").checked, entry: $("entry").checked, newOnly: $("newOnly").checked,
     };
   }
 
+  // Entry level / new grad: an entry title, or a non-senior title asking for at most 2 years.
+  const isEntry = (j) => j.seniority === "entry" ||
+    (j.years != null && j.years <= 2 && !["senior", "manager", "director"].includes(j.seniority));
+
   function applyFilters(f) {
-    return S.jobs.filter((j) =>
+    return S.jobs.filter((j) => !isHidden(j) &&
+      (!f.entry || isEntry(j)) && (!f.newOnly || S.newIds.has(j.id)) &&
       f.families.has(j.family) && (!f.level || j.seniority === f.level) &&
       (!f.state || j.state === f.state || (j.remote && !j.state)) && (!f.remote || j.remote) &&
       (!f.h1b || Match.hasSponsorTrack(j)) && daysAgo(j.posted) <= f.age &&
@@ -149,6 +267,8 @@
       <p>Matching you as <strong>${esc(fam.join(" + ") || "Quality")}</strong> with
         <button type="button" class="link" data-act="years" title="Not right? Click to change">${p.years} years</button> experience ·
         <button type="button" class="link" data-act="skills">${terms.length} skills found</button>
+        ${S.semantic === "loading" ? `<span class="sem" title="Runs in your browser; your résumé is not uploaded">${loadingText()}</span>`
+          : S.semantic === "on" ? SEMANTIC_ON : ""}
         <button type="button" class="link muted-link" data-act="clear">Use another résumé</button></p>
       ${S.showSkills ? `<div class="chips">${terms.map((t) => `<span class="chip ok">${esc(t)}</span>`).join("")}</div>` : ""}`;
   }
@@ -178,37 +298,167 @@
     } else {
       tabs = [["all", "All jobs", list]];
     }
+    const mine = myList();
+    if (mine.length || S.tab === "mine") tabs.push(["mine", "My list", mine]);
     const current = tabs.find((t) => t[0] === S.tab) || tabs[0];
     $("tabs").innerHTML = tabs.map(([id, label, l]) =>
       `<button role="tab" aria-selected="${id === current[0]}" data-tab="${id}">${label} <span class="count">${l.length}</span></button>`).join("");
     $("tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.limit = PAGE; render(); }));
 
     const rows = current[2];
+    const active = current[0] === "mine" ? hideActive() : renderActive(f, list.length);
     $("jobs").innerHTML = rows.length ? rows.slice(0, S.limit).map(card).join("")
-      : `<li class="empty">No jobs match these filters. Try widening them.</li>`;
+      : `<li class="empty">${current[0] === "mine" ? "Nothing saved yet. Use ☆ Save on a job to keep it here."
+        : active ? 'No jobs here with these filters. <button type="button" class="link" data-act="clear-filters">Clear all filters</button>'
+        : "No jobs in this tab. Try the other tabs."}</li>`;
     $("more").hidden = rows.length <= S.limit;
     $("more").onclick = () => { S.limit += PAGE; render(); };
   }
 
   function card(j) {
+    if (j.gone) {
+      const m = MY.mine[j.id];
+      return `<li class="job card is-mine gone" data-id="${esc(j.id)}"><div class="job-main">
+        <div class="title-row"><a class="job-title" href="${esc(j.url)}" target="_blank" rel="noopener nofollow">${esc(j.title)}</a>
+          <span class="badge mine ${m.status}">${m.status === "applied" ? "Applied" : "Saved"} ${fmtDate(m.at)}</span></div>
+        <div class="job-sub"><strong>${esc(j.company)}</strong> · <span class="muted">No longer listed here</span></div></div>
+        ${actions(j, m)}</li>`;
+    }
     const s = S.scores && S.scores.get(j.id);
     const age = daysAgo(j.posted);
     const role = j.family === "RA" ? "regulatory affairs" : j.family === "QC" ? "quality control" : "quality";
     const li = "https://www.linkedin.com/search/results/people/?keywords=" + encodeURIComponent(`${j.company} ${role} manager`);
     const visa = j.h1b_ra_qa > 0 ? `<span class="badge visa" title="${j.h1b_ra_qa} H-1B applications for RA/QA roles, DOL FY2024–26">H-1B sponsor</span>`
       : j.cap_exempt ? `<span class="badge visa soft" title="Universities and hospitals can usually sponsor H-1B cap-exempt">May be cap-exempt</span>` : "";
-    const meta = [LEVELS[j.seniority] + (j.years != null ? ` · ${j.years}+ yrs` : ""), age === 0 ? "today" : `${age}d ago`].join(" · ");
-    const total = s ? s.matched.length + s.missing.length : 0;
-    const fit = s && total ? `<div class="fit"><span class="muted">${s.matched.length} of ${total} skills</span>
-        ${s.missing.filter((id) => !GENERIC.has(id)).slice(0, 3).map((id) => `<span class="chip gap" title="Asked for, not on your résumé">${esc(S.ctx.byId[id].label)}</span>`).join("")}</div>` : "";
-    return `<li class="job card">
+    const posted = age === 0 ? "today" : `${age}d ago`;
+    const hire = `<a href="${li}" target="_blank" rel="noopener nofollow" title="LinkedIn people search">Find hiring team</a>`;
+    let checks, missing = "";
+    if (s) {
+      // "How you match": skills, experience vs. what the posting asks, level. Symbol + colour, never colour alone.
+      const total = s.matched.length + s.missing.length;
+      const items = [];
+      if (total) items.push(check(s.matched.length / total >= 0.5 ? "ok" : "warn", `${s.matched.length} of ${total} skills`,
+        "Skills this posting asks for that your résumé names"));
+      if (j.years != null) {
+        const gap = j.years - S.profile.years;
+        items.push(gap <= 0 ? check("ok", `Asks ${j.years}+ yrs`, `You have ${S.profile.years}`)
+          : check(gap <= 1 ? "warn" : "no", `Asks ${j.years}+ yrs`, `You have ${S.profile.years}`));
+      }
+      items.push(`<span class="ck plain">${LEVELS[j.seniority]}</span>`);
+      checks = items.join("");
+      const gaps = s.missing.filter((id) => !GENERIC.has(id)).slice(0, 3);
+      if (gaps.length) missing = `<div class="missing"><span class="muted">Missing:</span>
+        ${gaps.map((id) => `<span class="chip gap" title="Asked for, not on your résumé">${esc(S.ctx.byId[id].label)}</span>`).join("")}</div>`;
+    } else {
+      checks = `<span class="ck plain">${LEVELS[j.seniority]}${j.years != null ? ` · ${j.years}+ yrs` : ""}</span>`;
+    }
+    const m = MY.mine[j.id];
+    const status = m ? `<span class="badge mine ${m.status}">${m.status === "applied" ? "Applied" : "Saved"} ${fmtDate(m.at)}</span>` : "";
+    const fresh = S.newIds.has(j.id) ? '<span class="badge new" title="Not listed on your last visit">New</span>' : "";
+    return `<li class="job card${m ? " is-mine" : ""}" data-id="${esc(j.id)}">
       ${s ? `<div class="score ${s.score >= Match.STRONG ? "hi" : s.score >= Match.WEAK ? "mid" : "lo"}" title="Match score">${s.score}</div>` : ""}
       <div class="job-main">
-        <a class="job-title" href="${esc(j.url)}" target="_blank" rel="noopener nofollow">${esc(j.title)}</a>
+        <div class="title-row"><a class="job-title" href="${esc(j.url)}" target="_blank" rel="noopener nofollow">${esc(j.title)}</a>${fresh}${status}</div>
         <div class="job-sub"><strong>${esc(j.company)}</strong> · ${esc(shortLoc(j))}${j.remote && !/remote/i.test(shortLoc(j)) ? ' · <span class="remote">Remote</span>' : ""} ${visa}</div>
-        <div class="job-meta">${meta} · <a href="${li}" target="_blank" rel="noopener nofollow" title="LinkedIn people search">Find hiring team</a></div>
-        ${fit}
-      </div></li>`;
+        <div class="checks">${checks}<span class="ck plain">${posted}</span><span class="ck plain">${hire}</span></div>
+        ${missing}
+      </div>
+      ${actions(j, m)}</li>`;
+  }
+
+  function actions(j, m) {
+    const on = (st) => !!(m && m.status === st);
+    return `<div class="actions">
+      <button type="button" class="act${on("saved") ? " on" : ""}" data-do="saved" aria-pressed="${on("saved")}">${on("saved") ? "★ Saved" : "☆ Save"}</button>
+      <button type="button" class="act${on("applied") ? " on" : ""}" data-do="applied" aria-pressed="${on("applied")}">${on("applied") ? "✓ Applied" : "Applied"}</button>
+      <details class="hide-menu"><summary class="act">Hide</summary>
+        <div class="menu"><button type="button" data-do="hide-job">This job</button>
+          <button type="button" data-do="hide-co">All from ${esc(j.company)}</button></div></details>
+    </div>`;
+  }
+
+  const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+  // Saved / applied jobs: saved first, newest first; jobs no longer listed come from the saved snapshot.
+  function myList() {
+    const byId = new Map(S.jobs.map((j) => [j.id, j]));
+    return Object.entries(MY.mine)
+      .sort((a, b) => (a[1].status === b[1].status ? 0 : a[1].status === "saved" ? -1 : 1) || b[1].at.localeCompare(a[1].at))
+      .map(([id, m]) => byId.get(id) || { ...m.job, id, gone: true });
+  }
+
+  function hideActive() { $("active").hidden = true; return 0; }
+
+  // Close an open Hide menu when clicking anywhere else.
+  document.addEventListener("click", (e) => {
+    document.querySelectorAll(".hide-menu[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+  });
+
+  $("jobs").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-do]");
+    if (!btn) return;
+    const id = btn.closest("[data-id]").dataset.id;
+    const j = S.jobs.find((x) => x.id === id) || { id, ...(MY.mine[id] || {}).job };
+    const act = btn.dataset.do;
+    if (act === "saved" || act === "applied") {
+      const cur = MY.mine[id];
+      if (cur && cur.status === act) delete MY.mine[id];
+      else MY.mine[id] = { status: act, at: new Date().toISOString(),
+        job: { title: j.title, company: j.company, url: j.url, location: j.location } };
+    } else if (act === "hide-job") MY.hidden.add(id);
+    else if (act === "hide-co") MY.hiddenCo.add(coKey(j.company));
+    saveMine();
+    render();
+  });
+
+  // Filters that differ from the defaults, as removable chips. Returns how many are on.
+  const AGE_DEFAULT = "45";
+  function renderActive(f, count) {
+    const chips = [];
+    if (f.q) chips.push(["q", `“${f.q}”`]);
+    document.querySelectorAll("#families input:not(:checked)").forEach((i) => chips.push([`fam:${i.value}`, `No ${S.labels[i.value]}`]));
+    if (f.level) chips.push(["level", LEVELS[f.level]]);
+    if (f.state) chips.push(["state", f.state]);
+    if (String(f.age) !== AGE_DEFAULT) chips.push(["age", `Posted within ${f.age} days`]);
+    if (f.remote) chips.push(["remote", "Remote only"]);
+    if (f.h1b) chips.push(["h1b", "H-1B sponsors only"]);
+    if (f.entry) chips.push(["entry", "Entry level / new grad"]);
+    if (f.newOnly) chips.push(["newOnly", "New since last visit"]);
+    const hidden = S.jobs.filter(isHidden).length;
+    if (hidden) chips.push(["hidden", `${hidden} hidden — show them`]);
+    $("active").hidden = !chips.length;
+    $("active").innerHTML = chips.length ? `<span class="muted">${count.toLocaleString()} jobs ·</span>
+      ${chips.map(([k, label]) => `<button type="button" class="fchip" data-filter="${esc(k)}" title="Remove this filter">${esc(label)} <span aria-hidden="true">✕</span><span class="sr">remove</span></button>`).join("")}
+      <button type="button" class="link small" data-act="clear-filters">Clear all</button>` : "";
+    return chips.length;
+  }
+
+  function clearFilter(k) {
+    if (k === "q") $("q").value = "";
+    else if (k.startsWith("fam:")) document.querySelector(`#families input[value="${k.slice(4)}"]`).checked = true;
+    else if (k === "level" || k === "state") $(k).value = "";
+    else if (k === "age") $("age").value = AGE_DEFAULT;
+    else if (k === "hidden") { MY.hidden.clear(); MY.hiddenCo.clear(); saveMine(); }
+    else $(k).checked = false;
+  }
+
+  document.addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-filter]");
+    const all = e.target.closest('[data-act="clear-filters"]');
+    if (!chip && !all) return;
+    if (chip) clearFilter(chip.dataset.filter);
+    else {
+      ["q", "level", "state", "age", "remote", "h1b", "entry", "newOnly"].forEach((k) => clearFilter(k));
+      document.querySelectorAll("#families input").forEach((i) => { i.checked = true; });
+    }
+    S.limit = PAGE;
+    render();
+  });
+
+  function check(kind, text, title) {
+    const [mark, said] = { ok: ["✓", "Meets"], warn: ["~", "Close"], no: ["✗", "Short"] }[kind];
+    return `<span class="ck ${kind}" title="${esc(title)}"><span class="mark" aria-hidden="true">${mark}</span>` +
+      `<span class="sr">${said}: </span>${esc(text)}</span>`;
   }
 
   init().catch((e) => { $("meta").textContent = "Couldn't load jobs.json. Run export.py first."; console.error(e); });

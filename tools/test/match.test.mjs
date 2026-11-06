@@ -1,0 +1,116 @@
+// Tests for site/match.js and the built site files.   node --test tools/test/
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { createRequire } from "node:module";
+import test from "node:test";
+
+const require = createRequire(import.meta.url);
+const Match = require("../../site/match.js");
+const root = new URL("../../", import.meta.url);
+const json = (p) => JSON.parse(fs.readFileSync(new URL(p, root), "utf8"));
+const buf = (p) => { const b = fs.readFileSync(new URL(p, root)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
+const vocab = json("site/vocab.json");
+const data = json("site/jobs.json");
+const ctx = Match.compile(vocab, data.jobs);
+const NOW = new Date("2026-11-05");
+
+const RA = `Regulatory Affairs Specialist
+Acme Medical, Boston MA   Jan 2022 - Present
+Prepared 510(k) submissions, EU MDR technical files, labeling review, ISO 13485, ISO 14971 risk management, eCTD.
+Beta Devices   Jun 2020 - Dec 2021
+Regulatory Affairs Associate: FDA 21 CFR 820 design controls, CAPA.
+Education
+Northeastern University, M.S. Regulatory Affairs   2018 - 2020`;
+
+test("experience years: counts jobs, skips degrees, caps at today", () => {
+  assert.equal(Match.experienceYears(RA, NOW), 6.5);   // Jan 2022–now (4.8) + Jun 2020–Dec 2021 (1.6); degree skipped
+  assert.equal(Match.experienceYears("QA Analyst  2024 - 2030", NOW), 3);           // future end capped at Nov 2026
+  assert.equal(Match.experienceYears("Bachelor of Science 2016 - 2020", NOW), 0);   // degree only
+  assert.equal(Match.experienceYears("7+ years of quality experience. 2023 - Present", NOW), 7); // stated wins
+});
+
+test("résumé analysis: family, skills", () => {
+  const p = Match.analyzeResume(ctx, RA, NOW);
+  assert.equal(Object.entries(p.affinity).sort((a, b) => b[1] - a[1])[0][0], "RA");
+  for (const id of ["510k", "mdr", "iso13485", "iso14971"]) assert.ok(!ctx.byId[id] || p.terms.has(id), id);
+  assert.ok(p.terms.size >= 6);
+});
+
+test("scores: 0–100, RA résumé ranks RA jobs above QC jobs on average", () => {
+  const p = Match.analyzeResume(ctx, RA, NOW);
+  const scores = Match.scoreAll(ctx, p);
+  assert.equal(scores.size, data.jobs.length);
+  const mean = (fam) => { const v = data.jobs.filter((j) => j.family === fam).map((j) => scores.get(j.id).score);
+    return v.reduce((a, b) => a + b, 0) / v.length; };
+  for (const s of scores.values()) assert.ok(s.score >= 0 && s.score <= 100);
+  assert.ok(mean("RA") > mean("QC") + 10, `RA ${mean("RA")} vs QC ${mean("QC")}`);
+});
+
+test("TF-IDF: built index matches what the site loads; self-similarity is highest", () => {
+  const texts = json("cache/job_texts.json");
+  const stop = json("tools/stop_words.json");
+  const docs = texts.slice(0, 50);
+  const built = Match.buildLexical(docs, stop);
+  const lex = Match.loadLexical(built.meta, Buffer.concat([Buffer.from(built.post.buffer), Buffer.from(built.wt.buffer)]).buffer);
+  const sims = Match.lexicalSims(lex, docs[7].text);
+  const best = [...sims].sort((a, b) => b[1] - a[1])[0];
+  assert.equal(best[0], docs[7].id);
+  assert.ok(best[1] > 0.99);
+  assert.equal(Match.lexicalSims(lex, "zzqx unrelated words").get(docs[0].id), 0);
+});
+
+test("site files are consistent with jobs.json", () => {
+  const ids = new Set(data.jobs.map((j) => j.id));
+  const lexMeta = json("site/lexical.json");
+  assert.deepEqual(new Set(lexMeta.jobs), ids, "lexical.json jobs");
+  const n = lexMeta.off[lexMeta.off.length - 1];
+  assert.equal(fs.statSync(new URL("site/lexical.bin", root)).size, n * 4, "lexical.bin size");
+  const vec = json("site/vectors.json");
+  assert.equal(vec.model, Match.EMBED_MODEL);
+  assert.deepEqual(new Set(Object.keys(vec.index)), ids, "vectors.json jobs");
+  const rows = Object.values(vec.index).reduce((a, [, c]) => a + c, 0);
+  assert.equal(fs.statSync(new URL("site/vectors.bin", root)).size, rows * vec.dim * 2, "vectors.bin size");
+  assert.equal(data.count, data.jobs.length);
+});
+
+test("no non-US jobs in jobs.json", () => {
+  const bad = data.jobs.filter((j) => /\((?:[mwfdhx]\s*\/\s*){1,3}[mwfdhx]\)/i.test(j.title) ||
+    /,[^,]*,\s*(?!US\b)[A-Z]{2}\s*$/.test(j.location) || /riyadh|belgio|germany|india\b|canada/i.test(j.location));
+  assert.deepEqual(bad.map((j) => j.location), []);
+});
+
+test("blend: keeps the keyword scale, follows the signals", () => {
+  const p = Match.analyzeResume(ctx, RA, NOW);
+  const scores = Match.scoreAll(ctx, p);
+  const kw = [...scores.values()].map((s) => s.score);
+  const lex = Match.loadLexical(json("site/lexical.json"), buf("site/lexical.bin"));
+  Match.blendSignals(scores, { lexical: Match.lexicalSims(lex, RA) });
+  const out = [...scores.values()];
+  const mean = (v) => v.reduce((a, b) => a + b, 0) / v.length;
+  assert.ok(Math.abs(mean(out.map((s) => s.score)) - mean(kw)) < 2, "mean preserved");
+  assert.ok(out.every((s) => s.keyword != null && s.score >= 0 && s.score <= 100));
+  // A huge semantic signal for one job moves it to the top.
+  const target = data.jobs[data.jobs.length - 1].id;
+  const sem = new Map(data.jobs.map((j) => [j.id, j.id === target ? 10 : 0]));
+  Match.blendSignals(scores, { lexical: Match.lexicalSims(lex, RA), semantic: sem });
+  const top = Math.max(...[...scores.values()].map((s) => s.score));   // scores cap at 100, so ties are possible
+  assert.equal(scores.get(target).score, top);
+});
+
+test("chunks and maxSim", () => {
+  const words = Array.from({ length: 400 }, (_, i) => `w${i}`).join(" ");
+  assert.equal(Match.chunks(words).length, 3);
+  assert.deepEqual(Match.chunks(""), [""]);
+  const rows = new Int16Array([32767, 0, 0, 32767]);                 // two unit vectors, dim 2
+  assert.ok(Math.abs(Match.maxSim([[1, 0]], rows, 0, 2, 2) - 1) < 1e-9);
+  assert.ok(Math.abs(Match.maxSim([[0, 1]], rows, 0, 1, 2)) < 1e-9);
+});
+
+test("tips run without errors", () => {
+  const p = Match.analyzeResume(ctx, RA, NOW);
+  const scores = Match.scoreAll(ctx, p);
+  const labels = Object.fromEntries(vocab.families.map((f) => [f.id, f.label]));
+  const t = Match.tips(ctx, p, scores, data.jobs, data.jobs, { families: new Set(["RA", "QA", "QC", "DOC"]), age: 45 }, labels);
+  assert.ok(Array.isArray(t));
+  for (const x of t) assert.ok(x.title && x.body);
+});

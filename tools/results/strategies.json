@@ -1,0 +1,398 @@
+{
+ "date": "2026-11-04T20:03:39.723Z",
+ "n": 398,
+ "rows": [
+  {
+   "name": "Keyword + e5-large max-sim (GPU) (w=0.6/0.6)",
+   "source": "large-model ceiling",
+   "spearman": 0.6581651286539194,
+   "ndcg20": 0.6321577937047141,
+   "p20": 0.9,
+   "note": ""
+  },
+  {
+   "name": "Keyword + bge-large max-sim (GPU) (w=0.6/0.6)",
+   "source": "large-model ceiling",
+   "spearman": 0.6540912928374967,
+   "ndcg20": 0.5536431081114526,
+   "p20": 0.95,
+   "note": ""
+  },
+  {
+   "name": "Keyword + gte-large max-sim (GPU) (w=0.5/0.6)",
+   "source": "large-model ceiling",
+   "spearman": 0.6474763866922995,
+   "ndcg20": 0.6135963914713475,
+   "p20": 0.85,
+   "note": ""
+  },
+  {
+   "name": "Keyword + gte-small max-sim, w=0.5 (current site)",
+   "source": "this project",
+   "spearman": 0.6242658033441787,
+   "ndcg20": 0.5517316969863282,
+   "p20": 0.8,
+   "note": ""
+  },
+  {
+   "name": "Current site → rerank top 60 by bge-reranker-v2-m3",
+   "source": "retrieve-then-rerank posts",
+   "spearman": 0.6175674671485106,
+   "ndcg20": 0.4045392852371272,
+   "p20": 0.6,
+   "note": ""
+  },
+  {
+   "name": "Current site → rerank top 60 by cross-encoder",
+   "source": "retrieve-then-rerank posts",
+   "spearman": 0.6158952851494942,
+   "ndcg20": 0.39845147818176463,
+   "p20": 0.7,
+   "note": ""
+  },
+  {
+   "name": "Current site → rerank top 60 by bge-reranker-base",
+   "source": "retrieve-then-rerank posts",
+   "spearman": 0.6153232061015746,
+   "ndcg20": 0.3084194681100898,
+   "p20": 0.65,
+   "note": ""
+  },
+  {
+   "name": "e5-large: max chunk similarity (GPU)",
+   "source": "large-model ceiling",
+   "spearman": 0.6075819574632103,
+   "ndcg20": 0.5176498822278439,
+   "p20": 0.8,
+   "note": ""
+  },
+  {
+   "name": "Keyword + gte-small requirements max-sim (w=0.6/0.5)",
+   "source": "this project + requirement focus",
+   "spearman": 0.607166459943815,
+   "ndcg20": 0.635450575199623,
+   "p20": 0.9,
+   "note": ""
+  },
+  {
+   "name": "Keyword + gte-base max-sim (w=0.5/0.5)",
+   "source": "this project, bigger models",
+   "spearman": 0.5984493526049418,
+   "ndcg20": 0.6712856280292958,
+   "p20": 0.8,
+   "note": ""
+  },
+  {
+   "name": "bge-large: max chunk similarity (GPU)",
+   "source": "large-model ceiling",
+   "spearman": 0.5965519280806258,
+   "ndcg20": 0.49130967624990374,
+   "p20": 0.8,
+   "note": ""
+  },
+  {
+   "name": "Keyword + bge-base max-sim (w=0.5/0.5)",
+   "source": "this project, bigger models",
+   "spearman": 0.5947879869044423,
+   "ndcg20": 0.5325796628612723,
+   "p20": 0.85,
+   "note": ""
+  },
+  {
+   "name": "gte-large: max chunk similarity (GPU)",
+   "source": "large-model ceiling",
+   "spearman": 0.5809035500056164,
+   "ndcg20": 0.48927816815887576,
+   "p20": 0.7,
+   "note": ""
+  },
+  {
+   "name": "Keyword + bge-small max-sim (w=0.4/0.4)",
+   "source": "this project, bigger models",
+   "spearman": 0.5805137351918755,
+   "ndcg20": 0.5441735374293619,
+   "p20": 0.75,
+   "note": ""
+  },
+  {
+   "name": "mpnet-base: max chunk similarity (GPU)",
+   "source": "large-model ceiling",
+   "spearman": 0.5782492100741098,
+   "ndcg20": 0.38024639406882066,
+   "p20": 0.6,
+   "note": ""
+  },
+  {
+   "name": "Keyword + e5-base max-sim (w=0.4/0.5)",
+   "source": "this project, bigger models",
+   "spearman": 0.5629180979925426,
+   "ndcg20": 0.4177703920870149,
+   "p20": 0.65,
+   "note": ""
+  },
+  {
+   "name": "RRF(keyword, BM25, gte-small max-sim)",
+   "source": "reciprocal rank fusion posts (k=60)",
+   "spearman": 0.5484844671813444,
+   "ndcg20": 0.44552701507185344,
+   "p20": 0.75,
+   "note": ""
+  },
+  {
+   "name": "RRF(keyword, gte-small max-sim, cross-encoder)",
+   "source": "RRF + reranker",
+   "spearman": 0.5436876688358528,
+   "ndcg20": 0.5457016784087629,
+   "p20": 0.75,
+   "note": ""
+  },
+  {
+   "name": "gte-small: max chunk similarity",
+   "source": "chunked retrieval",
+   "spearman": 0.5373663250618795,
+   "ndcg20": 0.4210265716930079,
+   "p20": 0.75,
+   "note": ""
+  },
+  {
+   "name": "Keyword + cross-encoder (w=0.2/0.2)",
+   "source": "hybrid + reranker",
+   "spearman": 0.5262720385685882,
+   "ndcg20": 0.5724444778918917,
+   "p20": 0.7,
+   "note": ""
+  },
+  {
+   "name": "Keyword + bge-reranker-v2-m3 (w=0.3/0.3)",
+   "source": "hybrid + reranker",
+   "spearman": 0.5238218193518595,
+   "ndcg20": 0.5713638851076439,
+   "p20": 0.75,
+   "note": ""
+  },
+  {
+   "name": "BM25 + gte-small max-sim (w=0.8/1)",
+   "source": "hybrid search posts",
+   "spearman": 0.5217624305436598,
+   "ndcg20": 0.41710707558994864,
+   "p20": 0.75,
+   "note": ""
+  },
+  {
+   "name": "gte-small max-sim, requirements section only",
+   "source": "JobMatch-AI requirement focus",
+   "spearman": 0.5153342254952807,
+   "ndcg20": 0.5130194205334387,
+   "p20": 0.9,
+   "note": ""
+  },
+  {
+   "name": "bge-base: max chunk similarity",
+   "source": "chunked retrieval",
+   "spearman": 0.509703244343006,
+   "ndcg20": 0.41991021970624637,
+   "p20": 0.65,
+   "note": ""
+  },
+  {
+   "name": "Keyword vocab (current site, layer 1)",
+   "source": "this project",
+   "spearman": 0.5043011972258166,
+   "ndcg20": 0.48487451976811535,
+   "p20": 0.65,
+   "note": ""
+  },
+  {
+   "name": "Keyword + bge-reranker-base (w=0.1/0)",
+   "source": "hybrid + reranker",
+   "spearman": 0.5035216896525414,
+   "ndcg20": 0.47172549837088135,
+   "p20": 0.65,
+   "note": ""
+  },
+  {
+   "name": "gte-base: max chunk similarity",
+   "source": "chunked retrieval",
+   "spearman": 0.5031983388610151,
+   "ndcg20": 0.45018755001933025,
+   "p20": 0.7,
+   "note": ""
+  },
+  {
+   "name": "TF-IDF + MiniLM mean (w=0.1/0.3)",
+   "source": "lisan-5/resume-job-matching hybrid",
+   "spearman": 0.4778243472336658,
+   "ndcg20": 0.4656596338162812,
+   "p20": 0.75,
+   "note": ""
+  },
+  {
+   "name": "e5-large: mean embedding cosine (GPU)",
+   "source": "large-model ceiling",
+   "spearman": 0.47079912872445817,
+   "ndcg20": 0.45412468684020235,
+   "p20": 0.7,
+   "note": ""
+  },
+  {
+   "name": "mpnet-base: mean embedding cosine (GPU)",
+   "source": "most-used SBERT in Medium posts",
+   "spearman": 0.467872568802674,
+   "ndcg20": 0.33040142597710226,
+   "p20": 0.75,
+   "note": ""
+  },
+  {
+   "name": "TF-IDF cosine, uni+bigrams",
+   "source": "classic Medium tutorials",
+   "spearman": 0.4646625446127925,
+   "ndcg20": 0.470725193141941,
+   "p20": 0.8,
+   "note": ""
+  },
+  {
+   "name": "MiniLM-L6: max chunk similarity",
+   "source": "chunked retrieval",
+   "spearman": 0.45472525396297847,
+   "ndcg20": 0.2729357187667389,
+   "p20": 0.45,
+   "note": ""
+  },
+  {
+   "name": "e5-base: max chunk similarity",
+   "source": "chunked retrieval",
+   "spearman": 0.449622839006355,
+   "ndcg20": 0.326649552889867,
+   "p20": 0.55,
+   "note": ""
+  },
+  {
+   "name": "bge-small: max chunk similarity",
+   "source": "chunked retrieval",
+   "spearman": 0.44819749886276145,
+   "ndcg20": 0.38532520665468045,
+   "p20": 0.55,
+   "note": ""
+  },
+  {
+   "name": "gte-small: mean embedding cosine",
+   "source": "SBERT-cosine repos",
+   "spearman": 0.4453146386965727,
+   "ndcg20": 0.45908322769068655,
+   "p20": 0.6,
+   "note": ""
+  },
+  {
+   "name": "bge-large: mean embedding cosine (GPU)",
+   "source": "large-model ceiling",
+   "spearman": 0.44227966471293517,
+   "ndcg20": 0.41929294148151036,
+   "p20": 0.7,
+   "note": ""
+  },
+  {
+   "name": "TF-IDF cosine, unigrams",
+   "source": "classic Medium tutorials",
+   "spearman": 0.437657984517009,
+   "ndcg20": 0.468568090653712,
+   "p20": 0.8,
+   "note": ""
+  },
+  {
+   "name": "gte-large: mean embedding cosine (GPU)",
+   "source": "large-model ceiling",
+   "spearman": 0.4342526148762491,
+   "ndcg20": 0.48075578212008047,
+   "p20": 0.7,
+   "note": ""
+  },
+  {
+   "name": "gte-base: mean embedding cosine",
+   "source": "SBERT-cosine repos",
+   "spearman": 0.4109064458841066,
+   "ndcg20": 0.44454093747502504,
+   "p20": 0.7,
+   "note": ""
+  },
+  {
+   "name": "bge-base: mean embedding cosine",
+   "source": "SBERT-cosine repos",
+   "spearman": 0.38840157127302505,
+   "ndcg20": 0.35895979007650647,
+   "p20": 0.7,
+   "note": ""
+  },
+  {
+   "name": "Skill Jaccard (vocab terms)",
+   "source": "skill-extractor repos (SkillTool etc.)",
+   "spearman": 0.3746725397202425,
+   "ndcg20": 0.37975435330463736,
+   "p20": 0.65,
+   "note": ""
+  },
+  {
+   "name": "MiniLM-L6: mean embedding cosine",
+   "source": "SBERT-cosine repos",
+   "spearman": 0.3732199993033981,
+   "ndcg20": 0.3452243215651361,
+   "p20": 0.6,
+   "note": ""
+  },
+  {
+   "name": "bge-small: mean embedding cosine",
+   "source": "SBERT-cosine repos",
+   "spearman": 0.35507378457568156,
+   "ndcg20": 0.4053307991627864,
+   "p20": 0.6,
+   "note": ""
+  },
+  {
+   "name": "e5-base: mean embedding cosine",
+   "source": "SBERT-cosine repos",
+   "spearman": 0.35312376007357194,
+   "ndcg20": 0.26596223971690824,
+   "p20": 0.6,
+   "note": ""
+  },
+  {
+   "name": "Cross-encoder bge-reranker-v2-m3 (all jobs, GPU)",
+   "source": "reranker posts",
+   "spearman": 0.2753510111017217,
+   "ndcg20": 0.36961934804720237,
+   "p20": 0.65,
+   "note": ""
+  },
+  {
+   "name": "BM25 (résumé as query)",
+   "source": "rank_bm25 / HF resume-screener demo",
+   "spearman": 0.2747964478620893,
+   "ndcg20": 0.3332021202946903,
+   "p20": 0.65,
+   "note": ""
+  },
+  {
+   "name": "Cross-encoder ms-marco-MiniLM (all jobs)",
+   "source": "HF resume-screener demo",
+   "spearman": 0.24037201077625675,
+   "ndcg20": 0.2960618820259774,
+   "p20": 0.6,
+   "note": ""
+  },
+  {
+   "name": "Skill coverage (job terms found)",
+   "source": "Resume-Matcher keyword %",
+   "spearman": 0.19086078871502912,
+   "ndcg20": 0.5278140861005244,
+   "p20": 0.55,
+   "note": ""
+  },
+  {
+   "name": "Cross-encoder bge-reranker-base (all jobs, GPU)",
+   "source": "reranker posts",
+   "spearman": 0.09075949601870134,
+   "ndcg20": 0.18128352151151367,
+   "p20": 0.4,
+   "note": ""
+  }
+ ]
+}

@@ -1,2 +1,6 @@
 .claude/
 __pycache__/
+cache/
+# Private copy of job-pipeline: .env secrets, a personal résumé, association member data. Never publish.
+pipeline/
+node_modules/

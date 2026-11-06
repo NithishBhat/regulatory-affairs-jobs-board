@@ -19,6 +19,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 a { color: var(--accent); }
 h1, h2, h3 { line-height: 1.25; margin: 0 0 .4em; }
@@ -26,8 +27,7 @@ h2 { font-size: 1.05rem; }
 h3 { font-size: .95rem; }
 .wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
-.muted, .hint { color: var(--muted); }
-.hint { font-size: .8rem; margin: .6em 0 0; }
+.muted { color: var(--muted); }
 
 .top { background: var(--surface); border-bottom: 1px solid var(--line); }
 .top-row { display: flex; justify-content: space-between; align-items: center; height: 56px; gap: 12px; }
@@ -61,29 +61,27 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
   background: var(--accent); color: var(--accent-ink); cursor: pointer; text-decoration: none; white-space: nowrap; display: inline-block; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn.ghost { background: transparent; color: var(--accent); }
-.btn.small { font-size: .82rem; padding: 6px 10px; }
 .link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-decoration: underline; }
 .link.small { font-size: .8rem; }
 
-.profile, .tips { padding: 16px; margin-bottom: 16px; }
-.profile { padding: 12px 16px; }
+/* Profile + tips read as one block: profile on top, tips attached below it */
+.profile, .tips { padding: 12px 16px; margin-bottom: 16px; }
+.profile:has(+ .tips:not([hidden])) { margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.profile + .tips { border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; background: var(--bg); }
 .profile p { margin: 0; }
 .profile .chips { margin-top: 10px; }
-.tip-list { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 8px; }
-.tip { font-size: .9rem; }
-.tip .muted { font-size: .85rem; }
+.tip-list { list-style: none; margin: 0 0 4px; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px 20px; }
+.tip { font-size: .86rem; }
+.tip .muted { font-size: .82rem; }
 .tip .chips { margin-top: 6px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-size: .78rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .chip.ok { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
 .chip.gap { background: var(--gap-soft); border-color: transparent; color: var(--gap); }
-.chip b { font-weight: 700; margin-left: 2px; }
-.chips.small { margin-top: 8px; }
-.chips.small .chip { font-size: .72rem; }
 
 .layout { display: grid; grid-template-columns: 240px 1fr; gap: 20px; align-items: start; padding-bottom: 32px; }
-.filters { padding: 16px; position: sticky; top: 12px; }
+.filters { padding: 16px; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
 .field { display: block; margin: 0 0 12px; font-size: .85rem; color: var(--muted); border: 0; padding: 0; }
 .field input, .field select { margin-top: 4px; }
 .field legend { padding: 0; margin-bottom: 4px; }
@@ -98,13 +96,24 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
 .tabs .count { margin: 0; }
 
 .jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.job { display: grid; grid-template-columns: auto 1fr; gap: 14px; padding: 12px 16px; align-items: start; }
-.job:not(:has(.score)) { grid-template-columns: 1fr; }
-.job-meta { font-size: .8rem; color: var(--muted); }
-.job-meta a { color: var(--muted); }
-.job-meta a:hover { color: var(--accent); }
-.fit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: .78rem; }
-.fit .chip { font-size: .72rem; }
+.job { display: grid; gap: 14px; padding: 12px 16px; align-items: start; }
+/* "How you match" row: ✓ 10 of 19 skills · ~ Asks 5+ yrs · Mid · 8d ago · Find hiring team */
+.checks { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 6px; font-size: .82rem; }
+.ck { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.ck .mark { font-weight: 700; }
+.ck.ok { color: var(--hi); } .ck.warn { color: var(--mid); } .ck.no { color: var(--gap); }
+.ck.plain a { color: var(--muted); }
+.ck.plain a:hover { color: var(--accent); }
+.missing { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: .78rem; }
+.missing .chip { font-size: .74rem; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Active filters above the tabs */
+.active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; font-size: .82rem; }
+.fchip { font: inherit; font-size: .8rem; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+  border-radius: 999px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--ink); cursor: pointer; }
+.fchip:hover { background: var(--surface); }
+.fchip span[aria-hidden] { color: var(--accent); font-size: .75rem; }
 .score { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .95rem;
   border: 2px solid currentColor; }
 .score.hi { color: var(--hi); } .score.mid { color: var(--mid); } .score.lo { color: var(--lo); }
@@ -113,12 +122,32 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
 .job-sub { font-size: .87rem; color: var(--muted); margin: 2px 0; }
 .job-sub strong { color: var(--ink); font-weight: 600; }
 .remote { color: var(--accent); font-weight: 600; }
-.badges { display: flex; flex-wrap: wrap; gap: 6px; }
 .badge { font-size: .74rem; padding: 1px 7px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
-.badge.fam { color: var(--ink); }
 .badge.visa { color: var(--accent); border-color: var(--accent); }
 .badge.visa.soft { border-style: dashed; }
 .empty { padding: 32px; text-align: center; color: var(--muted); }
+
+/* Save / Applied / Hide */
+.job { grid-template-columns: auto 1fr auto; }
+.job:not(:has(.score)) { grid-template-columns: 1fr auto; }
+.actions { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.act { font: inherit; font-size: .78rem; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--line);
+  background: transparent; color: var(--muted); cursor: pointer; text-align: center; white-space: nowrap; list-style: none; }
+.act::-webkit-details-marker { display: none; }
+.act:hover { border-color: var(--accent); color: var(--accent); }
+.act.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.hide-menu { position: relative; }
+.hide-menu .menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; display: grid; min-width: 180px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, .18); padding: 4px; }
+.hide-menu .menu button { font: inherit; font-size: .82rem; text-align: left; background: none; border: 0; padding: 6px 10px;
+  border-radius: 6px; color: var(--ink); cursor: pointer; }
+.hide-menu .menu button:hover { background: var(--accent-soft); }
+.title-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.badge.new { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.badge.mine { color: var(--accent); border-color: var(--accent); }
+.badge.mine.applied { background: var(--accent-soft); }
+.job.is-mine { border-color: var(--accent); }
+.job.gone { opacity: .75; }
 .more { margin: 14px auto 0; display: block; }
 .foot { color: var(--muted); font-size: .8rem; padding: 20px 16px 40px; border-top: 1px solid var(--line); }
 
@@ -128,3 +157,5 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
   .filters { position: static; }
 }
 .job-sub .badge { margin-left: 4px; vertical-align: 1px; }
+.sem { color: var(--muted); font-size: .85rem; }
+.sem.on { color: var(--accent); }

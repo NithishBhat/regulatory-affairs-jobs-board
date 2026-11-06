@@ -1,0 +1,24 @@
+{
+  "name": "ra-qa-jobboard",
+  "version": "1.0.0",
+  "description": "A public job board for Regulatory Affairs / Quality roles. Visitors drop in a résumé and get strong and weak matches plus tips for widening their search. The résumé is parsed and matched **in the browser** and never uploaded.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NithishBhat/regulatory-affairs-jobs-board.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/NithishBhat/regulatory-affairs-jobs-board/issues"
+  },
+  "homepage": "https://github.com/NithishBhat/regulatory-affairs-jobs-board#readme",
+  "devDependencies": {
+    "@huggingface/transformers": "^3.8.1"
+  }
+}
