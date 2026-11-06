@@ -33,8 +33,12 @@ h3 { font-size: .95rem; }
 
 .top { background: var(--surface); border-bottom: 1px solid var(--line); }
 .top-row { display: flex; justify-content: space-between; align-items: center; height: 56px; gap: 12px; }
-.brand { font-weight: 700; font-size: 1.1rem; letter-spacing: -.01em; }
-.brand span { color: var(--accent); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; letter-spacing: -.01em; }
+.brand-name span { color: var(--accent); }
+.logo { width: 28px; height: 28px; flex: none; }
+.logo-tile { fill: var(--accent); }
+.logo-fold { fill: var(--accent-soft); }
+.logo-check { fill: none; stroke: var(--accent); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .meta { color: var(--muted); font-size: .85rem; text-align: right; }
 
 .hero { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; align-items: center; padding: 20px 0 16px; }
