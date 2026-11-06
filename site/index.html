@@ -23,14 +23,20 @@
   <section class="hero">
     <div class="hero-text">
       <h1>Regulatory Affairs &amp; Quality jobs, matched to your résumé</h1>
-      <p>Openings straight from employers' own career sites. Your résumé stays <strong>in your browser</strong>
-        and is never uploaded.</p>
+      <p>Upload your résumé and see which openings fit you best, what skills they keep asking for, and who
+        sponsors visas.</p>
+      <ul class="trust">
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg><span><strong id="trustCount">—</strong> open roles</span></li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6"/></svg><span>From employers' own career sites</span></li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Your résumé never leaves your browser</span></li>
+      </ul>
     </div>
     <div class="upload card">
       <label class="drop" id="drop">
         <input type="file" id="file" accept=".pdf,.docx,.txt" hidden>
+        <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
         <span class="drop-title">Drop your résumé here</span>
-        <span class="drop-sub">or click to choose a PDF, DOCX or TXT</span>
+        <span class="drop-sub">or <u>choose a file</u> · PDF, DOCX or TXT</span>
       </label>
       <button type="button" class="link small" id="pasteBtn">Paste text instead</button>
       <div id="pasteBox" hidden>
@@ -47,27 +53,50 @@
   <div class="layout">
     <aside class="filters card">
       <h2>Filters</h2>
-      <label class="field">Search <input type="search" id="q" placeholder="Title or company"></label>
-      <fieldset class="field"><legend>Job family</legend><div id="families"></div></fieldset>
-      <label class="check" title="Entry titles, or roles asking for 2 years or less"><input type="checkbox" id="entry">
-        Entry level / new grad <span class="count" id="entryCount"></span></label>
-      <label class="check" id="newOnlyBox" hidden title="Jobs that weren't listed on your last visit">
-        <input type="checkbox" id="newOnly"> New since last visit <span class="count" id="newCount"></span></label>
-      <label class="field">Level
-        <select id="level"><option value="">Any</option></select></label>
-      <label class="field">State
-        <select id="state"><option value="">Any</option></select></label>
-      <label class="field">Posted within
-        <select id="age"><option value="2">2 days</option><option value="7">7 days</option><option value="14">14 days</option>
-          <option value="30">30 days</option><option value="45" selected>45 days</option></select></label>
-      <label class="check"><input type="checkbox" id="remote"> Remote only</label>
-      <label class="check" title="Employer filed H-1B applications (LCAs) for RA/QA roles in FY2024–26 (U.S. Dept. of Labor data), or is a university or hospital (may be cap-exempt)">
-        <input type="checkbox" id="h1b"> H-1B sponsors only</label>
-      <label class="check" title="Hides postings that say US citizens / green card only, security clearance, US persons only (export control), or no visa sponsorship">
-        <input type="checkbox" id="visaOk"> Open to visa holders <span class="count" id="visaOkCount"></span></label>
+      <label class="field"><span class="sr">Search</span><input type="search" id="q" placeholder="Search title or company"></label>
+
+      <div class="fgroup">
+        <h3>Visa</h3>
+        <label class="check" title="Hides postings that say US citizens / green card only, security clearance, US persons only (export control), or no visa sponsorship">
+          <input type="checkbox" id="visaOk"> Open to visa holders <span class="count" id="visaOkCount"></span></label>
+        <label class="check" title="Employer filed H-1B applications (LCAs) for RA/QA roles in FY2024–26 (U.S. Dept. of Labor data), or is a university or hospital (may be cap-exempt)">
+          <input type="checkbox" id="h1b"> H-1B sponsors only</label>
+      </div>
+
+      <div class="fgroup">
+        <h3>Role</h3>
+        <div id="families"></div>
+      </div>
+
+      <div class="fgroup">
+        <h3>Experience</h3>
+        <label class="check" title="Entry titles, or roles asking for 2 years or less"><input type="checkbox" id="entry">
+          Entry level / new grad <span class="count" id="entryCount"></span></label>
+        <label class="field">Level <select id="level"><option value="">Any</option></select></label>
+      </div>
+
+      <div class="fgroup">
+        <h3>Location</h3>
+        <label class="check"><input type="checkbox" id="remote"> Remote only</label>
+        <label class="field">State <select id="state"><option value="">Any</option></select></label>
+      </div>
+
+      <div class="fgroup">
+        <h3>Freshness</h3>
+        <label class="check" id="newOnlyBox" hidden title="Jobs that weren't listed on your last visit">
+          <input type="checkbox" id="newOnly"> New since last visit <span class="count" id="newCount"></span></label>
+        <label class="field">Posted within
+          <select id="age"><option value="2">2 days</option><option value="7">7 days</option><option value="14">14 days</option>
+            <option value="30">30 days</option><option value="45" selected>45 days</option></select></label>
+      </div>
     </aside>
 
     <section class="results">
+      <div class="nudge" id="nudge">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+        <span><strong>These are sorted by date.</strong> Add your résumé to rank them by how well you fit.</span>
+        <button type="button" class="btn small" id="nudgeBtn">Add résumé</button>
+      </div>
       <div class="active-filters" id="active" hidden></div>
       <nav class="tabs" id="tabs" role="tablist"></nav>
       <ol class="jobs" id="jobs"></ol>

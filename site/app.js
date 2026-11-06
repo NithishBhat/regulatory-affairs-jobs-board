@@ -67,6 +67,8 @@
     trackVisit(S.jobs.map((j) => j.id));
     S.ctx = Match.compile(vocab, S.jobs);
     S.labels = Object.fromEntries(vocab.families.map((f) => [f.id, f.label]));
+    $("trustCount").textContent = data.count.toLocaleString();
+    $("nudgeBtn").addEventListener("click", () => $("file").click());
     $("meta").textContent = `${data.count.toLocaleString()} open roles · updated ${new Date(data.generated).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 
     $("families").innerHTML = vocab.families.map((f) =>
@@ -320,10 +322,11 @@
       `<button role="tab" aria-selected="${id === current[0]}" data-tab="${id}">${label} <span class="count">${l.length}</span></button>`).join("");
     $("tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.limit = PAGE; render(); }));
 
+    $("nudge").hidden = !!S.scores;
     const rows = current[2];
     const active = current[0] === "mine" ? hideActive() : renderActive(f, list.length);
     $("jobs").innerHTML = rows.length ? rows.slice(0, S.limit).map(card).join("")
-      : `<li class="empty">${current[0] === "mine" ? "Nothing saved yet. Use ☆ Save on a job to keep it here."
+      : `<li class="empty">${current[0] === "mine" ? "Nothing saved yet. Click the ☆ on a job to keep it here."
         : active ? 'No jobs here with these filters. <button type="button" class="link" data-act="clear-filters">Clear all filters</button>'
         : "No jobs in this tab. Try the other tabs."}</li>`;
     $("more").hidden = rows.length <= S.limit;
@@ -333,11 +336,11 @@
   function card(j) {
     if (j.gone) {
       const m = MY.mine[j.id];
-      return `<li class="job card is-mine gone" data-id="${esc(j.id)}"><div class="job-main">
+      return `<li class="job card is-mine gone" data-id="${esc(j.id)}">${avatar(j.company)}<div class="job-main">
         <div class="title-row"><a class="job-title" href="${esc(j.url)}" target="_blank" rel="noopener nofollow">${esc(j.title)}</a>
           <span class="badge mine ${m.status}">${m.status === "applied" ? "Applied" : "Saved"} ${fmtDate(m.at)}</span></div>
         <div class="job-sub"><strong>${esc(j.company)}</strong> · <span class="muted">No longer listed here</span></div></div>
-        ${actions(j, m)}</li>`;
+        <div class="side">${actions(j, m)}</div></li>`;
     }
     const s = S.scores && S.scores.get(j.id);
     const age = daysAgo(j.posted);
@@ -373,26 +376,45 @@
     const m = MY.mine[j.id];
     const status = m ? `<span class="badge mine ${m.status}">${m.status === "applied" ? "Applied" : "Saved"} ${fmtDate(m.at)}</span>` : "";
     const fresh = S.newIds.has(j.id) ? '<span class="badge new" title="Not listed on your last visit">New</span>' : "";
+    const score = s ? `<div class="score ${s.score >= Match.STRONG ? "hi" : s.score >= Match.WEAK ? "mid" : "lo"}" title="Match score (0–100)">${s.score}</div>` : "";
     return `<li class="job card${m ? " is-mine" : ""}" data-id="${esc(j.id)}">
-      ${s ? `<div class="score ${s.score >= Match.STRONG ? "hi" : s.score >= Match.WEAK ? "mid" : "lo"}" title="Match score">${s.score}</div>` : ""}
+      ${avatar(j.company)}
       <div class="job-main">
         <div class="title-row"><a class="job-title" href="${esc(j.url)}" target="_blank" rel="noopener nofollow">${esc(j.title)}</a>${fresh}${status}</div>
         <div class="job-sub"><strong>${esc(j.company)}</strong> · ${esc(shortLoc(j))}${j.remote && !/remote/i.test(shortLoc(j)) ? ' · <span class="remote">Remote</span>' : ""} ${visa}</div>
         <div class="checks">${checks}<span class="ck plain">${posted}</span><span class="ck plain">${hire}</span></div>
         ${missing}
       </div>
-      ${actions(j, m)}</li>`;
+      <div class="side">${score}${actions(j, m)}</div></li>`;
   }
 
+  // Small icon buttons: save, mark applied, more (hide). Labels for screen readers and on hover.
+  const ICON = {
+    star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>',
+    check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>',
+    more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>',
+  };
   function actions(j, m) {
     const on = (st) => !!(m && m.status === st);
+    const btn = (st, icon, label, onLabel) => `<button type="button" class="ico ${st}${on(st) ? " on" : ""}" data-do="${st}"
+      aria-pressed="${on(st)}" title="${on(st) ? onLabel : label}" aria-label="${on(st) ? onLabel : label}">${ICON[icon]}</button>`;
     return `<div class="actions">
-      <button type="button" class="act${on("saved") ? " on" : ""}" data-do="saved" aria-pressed="${on("saved")}">${on("saved") ? "★ Saved" : "☆ Save"}</button>
-      <button type="button" class="act${on("applied") ? " on" : ""}" data-do="applied" aria-pressed="${on("applied")}">${on("applied") ? "✓ Applied" : "Applied"}</button>
-      <details class="hide-menu"><summary class="act">Hide</summary>
-        <div class="menu"><button type="button" data-do="hide-job">This job</button>
-          <button type="button" data-do="hide-co">All from ${esc(j.company)}</button></div></details>
+      ${btn("saved", "star", "Save", "Saved — click to remove")}
+      ${btn("applied", "check", "Mark as applied", "Applied — click to undo")}
+      <details class="hide-menu"><summary class="ico" title="More" aria-label="More options">${ICON.more}</summary>
+        <div class="menu"><button type="button" data-do="hide-job">Hide this job</button>
+          <button type="button" data-do="hide-co">Hide all from ${esc(j.company)}</button></div></details>
     </div>`;
+  }
+
+  // Company initials in a colour picked from the name, so the same company always looks the same.
+  const LEGAL = /^(?:inc|llc|ltd|corp|corporation|co|company|plc|lp|the|group|holdings|usa|us|america|americas|na)$/i;
+  function avatar(company) {
+    const words = String(company || "?").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((w) => w && !LEGAL.test(w));
+    const initials = ((words[0] || "?")[0] + (words.length > 1 ? words[1][0] : (words[0] || "")[1] || "")).toUpperCase();
+    let h = 0;
+    for (const c of String(company)) h = (h * 31 + c.charCodeAt(0)) % 360;
+    return `<div class="avatar" style="--h:${h}" aria-hidden="true">${esc(initials)}</div>`;
   }
 
   const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
