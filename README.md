@@ -55,6 +55,12 @@ never writes there or runs pipeline phases. It rebuilds from scratch on every ru
   - `site/vectors.bin`: gte-base embeddings of each job's ~180-word chunks. The browser embeds the résumé with
     the same model (transformers.js, about 110 MB, downloaded once) and uses the best chunk similarity.
   If the model can't load, the site keeps keyword + TF-IDF.
+- After the blend: jobs asking for more years than the résumé shows lose up to 10 points (half when the years
+  only come from the title level; skipped when the résumé has no dates and no "N years"), then the score is
+  calibrated to the rubric's scale with `site/calibration.json` (isotonic fit on the labeled pairs,
+  `tools/eval/calibrate.py`): the number is an estimate of a hiring manager's 0–100 rating, 70+ good. Tabs:
+  "Best matches" 58+, "Worth a look" 44+ (cut-offs and their precision/recall in `tools/results/calibration.md`).
+  Ranking uses the unrounded blended value. The model runs in a background worker (`site/semantic-worker.js`).
 - Evaluation: 40 résumés (24 real public ones, 16 synthetic), 1,860 LLM-labeled pairs, 21 embedding models,
   5 cross-encoders and a LightGBM ranker were compared (`tools/eval/`, results in `tools/results/general_eval.md`).
   `tools/eval/site_scores.mjs` + `eval_site.py` score the site's own code (`tools/results/site_eval.md`).

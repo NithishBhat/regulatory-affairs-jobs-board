@@ -19,7 +19,6 @@
     const why = j.restrict.map((k) => RESTRICT[k][1]).join(". ");
     return `<span class="badge limit" title="${esc(why)}">${RESTRICT[first][0]}</span>`;
   }
-  const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
   const SEMANTIC_ON = '<span class="sem on" title="Keyword and word-overlap match blended with meaning-based similarity, computed in your browser">· AI matching on</span>';
   const S = { ctx: null, jobs: [], labels: {}, profile: null, scores: null, tab: "all", limit: PAGE,
     text: "", years: null, showSkills: false, showAllTips: false, sims: null, simsText: "", semantic: null, semRun: 0,
@@ -59,13 +58,14 @@
   const daysAgo = (d) => Math.max(0, Math.round((Date.now() - new Date(d + "T12:00:00")) / 864e5));
 
   async function init() {
-    const [vocab, data] = await Promise.all([
+    const [vocab, data, cal] = await Promise.all([
       fetch("vocab.json").then((r) => r.json()),
       fetch("jobs.json", { cache: "no-cache" }).then((r) => r.json()),
+      fetch("calibration.json").then((r) => r.json()).catch(() => null),   // without it, scores stay uncalibrated
     ]);
     S.jobs = data.jobs;
     trackVisit(S.jobs.map((j) => j.id));
-    S.ctx = Match.compile(vocab, S.jobs);
+    S.ctx = Match.compile(vocab, S.jobs, cal);
     S.labels = Object.fromEntries(vocab.families.map((f) => [f.id, f.label]));
     $("trustCount").textContent = data.count.toLocaleString();
     $("meta").textContent = `${data.count.toLocaleString()} open roles · updated ${new Date(data.generated).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
@@ -97,7 +97,12 @@
     drop.addEventListener("drop", (e) => { e.preventDefault(); e.dataTransfer.files[0] && readFile(e.dataTransfer.files[0]); });
     $("pasteBtn").addEventListener("click", () => { $("pasteBox").hidden = false; $("pasteBtn").hidden = true; $("paste").focus(); });
     $("paste").addEventListener("input", () => { S.text = $("paste").value; $("matchBtn").disabled = S.text.trim().length < 200; });
-    $("matchBtn").addEventListener("click", () => { S.years = null; runMatch(); });
+    $("matchBtn").addEventListener("click", async () => {
+      S.years = null;
+      status("Matching you to 900+ jobs…", false, true);
+      await nextPaint();
+      runMatch();
+    });
 
     // Profile summary controls (rendered later), delegated.
     $("profile").addEventListener("click", (e) => {
@@ -114,8 +119,17 @@
     });
   }
 
+  // Let the browser show a status message before heavy work. Frames don't run in background tabs, so a 100 ms
+  // timer makes sure this never waits forever.
+  const nextPaint = () => new Promise((resolve) => {
+    let done = false;
+    const go = () => { if (!done) { done = true; setTimeout(resolve, 0); } };
+    requestAnimationFrame(go);
+    setTimeout(go, 100);
+  });
+
   async function readFile(f) {
-    status(`Reading ${f.name}…`);
+    status(`Reading ${f.name}…`, false, true);
     try {
       const name = f.name.toLowerCase();
       if (name.endsWith(".pdf")) S.text = await pdfText(await f.arrayBuffer());
@@ -123,6 +137,8 @@
       else S.text = await f.text();
       if (S.text.trim().length < 200) return status("Couldn't find much text in that file. If it's a scanned PDF, paste the text instead.", true);
       S.years = null;
+      status("Matching you to 900+ jobs…", false, true);
+      await nextPaint();                                  // show the message before the matching work starts
       runMatch();
     } catch (err) {
       status("Couldn't read that file. Try another format or paste the text.", true);
@@ -145,7 +161,7 @@
   function runMatch() {
     const first = !S.profile;
     S.profile = Match.analyzeResume(S.ctx, S.text);
-    if (S.years != null) S.profile.years = S.years;
+    if (S.years != null) Object.assign(S.profile, { years: S.years, yearsKnown: true });   // typed in by the visitor
     applySignals();
     if (!(S.sims && S.simsText === S.text)) refineSemantic();   // a years edit reuses the similarities
     S.tab = "strong"; S.limit = PAGE;
@@ -160,7 +176,7 @@
   function applySignals() {
     S.scores = Match.scoreAll(S.ctx, S.profile);
     if (S.lex && S.lexText !== S.text) Object.assign(S, { lexSims: Match.lexicalSims(S.lex, S.text), lexText: S.text });
-    Match.blendSignals(S.scores, { lexical: S.lexText === S.text ? S.lexSims : null,
+    Match.finalize(S.ctx, S.profile, S.scores, { lexical: S.lexText === S.text ? S.lexSims : null,
       semantic: S.simsText === S.text ? S.sims : null });
   }
 
@@ -194,29 +210,40 @@
       : "· improving scores with AI…";
   }
 
-  let semantic = null;
-  function loadSemantic() {
-    semantic = semantic || Promise.all([
-      import(TRANSFORMERS),
-      fetch("vectors.json").then((r) => r.json()),
-      fetch("vectors.bin").then((r) => r.arrayBuffer()),
-    ]).then(async ([tf, meta, buf]) => ({
-      meta, rows: new Int16Array(buf),
-      embed: await tf.pipeline("feature-extraction", meta.model, { dtype: "q8", progress_callback: onModelProgress }),
-    }));
-    semantic.catch(() => { semantic = null; });       // allow a retry on the next résumé
-    return semantic;
+  // The model runs in a background worker (semantic-worker.js), so downloading and running it never freezes
+  // the page. One request per résumé; answers are matched to requests by run number.
+  let worker = null;
+  const pending = new Map();
+  function getWorker() {
+    if (worker) return worker;
+    worker = new Worker("semantic-worker.js", { type: "module" });
+    worker.onmessage = ({ data }) => {
+      if (data.type === "progress") return onModelProgress(data.e);
+      const p = pending.get(data.run);
+      if (!p) return;
+      pending.delete(data.run);
+      if (data.type === "sims") p.resolve(new Map(data.ids.map((id, i) => [id, data.sims[i]])));
+      else p.reject(new Error(data.message));
+    };
+    worker.onerror = (e) => {                          // worker failed to start: keyword + TF-IDF stay
+      for (const p of pending.values()) p.reject(e);
+      pending.clear();
+      worker = null;
+    };
+    return worker;
+  }
+  function semanticSims(text, run) {
+    return new Promise((resolve, reject) => {
+      pending.set(run, { resolve, reject });
+      getWorker().postMessage({ run, text });
+    });
   }
 
   async function refineSemantic() {
     const run = ++S.semRun, text = S.text;
     S.sims = null; S.semantic = "loading";
     try {
-      const sem = await loadSemantic();
-      const vecs = (await sem.embed(Match.chunks(text), { pooling: "mean", normalize: true })).tolist();
-      const sims = new Map();
-      for (const [id, [first, count]] of Object.entries(sem.meta.index))
-        sims.set(id, Match.maxSim(vecs, sem.rows, first, count, sem.meta.dim));
+      const sims = await semanticSims(text, run);
       if (run !== S.semRun || !S.scores) return;                // résumé changed or cleared meanwhile
       Object.assign(S, { sims, simsText: text, semantic: "on" });
       applySignals();
@@ -239,7 +266,13 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function status(msg, bad) { $("status").textContent = msg; $("status").classList.toggle("bad", !!bad); }
+  // busy = show a spinner next to the message.
+  function status(msg, bad, busy) {
+    $("status").textContent = msg;
+    $("status").classList.toggle("bad", !!bad);
+    $("status").classList.toggle("busy", !!busy && !!msg);
+    $("drop").classList.toggle("busy", !!busy && !!msg);
+  }
 
   // ---------- filtering ----------
   function filters() {
@@ -304,12 +337,13 @@
     const f = filters();
     let list = applyFilters(f);
     const sc = (j) => S.scores.get(j.id).score;
+    const rank = (j) => S.scores.get(j.id).rank ?? sc(j);
     let tabs;
     if (S.scores) {
-      list.sort((a, b) => sc(b) - sc(a));
+      list.sort((a, b) => rank(b) - rank(a));
       const strong = list.filter((j) => sc(j) >= Match.STRONG);
       const weak = list.filter((j) => sc(j) >= Match.WEAK && sc(j) < Match.STRONG);
-      tabs = [["strong", "Strong matches", strong], ["weak", "Worth a look", weak], ["all", "All jobs", list]];
+      tabs = [["strong", "Best matches", strong], ["weak", "Worth a look", weak], ["all", "All jobs", list]];
       renderTips(list, f);
     } else {
       tabs = [["all", "All jobs", list]];
@@ -374,7 +408,7 @@
     const m = MY.mine[j.id];
     const status = m ? `<span class="badge mine ${m.status}">${m.status === "applied" ? "Applied" : "Saved"} ${fmtDate(m.at)}</span>` : "";
     const fresh = S.newIds.has(j.id) ? '<span class="badge new" title="Not listed on your last visit">New</span>' : "";
-    const score = s ? `<div class="score ${s.score >= Match.STRONG ? "hi" : s.score >= Match.WEAK ? "mid" : "lo"}" title="Match score (0–100)">${s.score}</div>` : "";
+    const score = s ? `<div class="score ${s.score >= Match.STRONG ? "hi" : s.score >= Match.WEAK ? "mid" : "lo"}" title="Estimated fit, 0–100, on the scale a hiring manager would use: 70+ good, 85+ strong">${s.score}</div>` : "";
     return `<li class="job card${m ? " is-mine" : ""}" data-id="${esc(j.id)}">
       ${avatar(j.company)}
       <div class="job-main">

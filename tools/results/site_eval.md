@@ -4,9 +4,9 @@ Per-résumé ρ / nDCG@10 / P@10. Scores are the integers visitors see (site/mat
 
 | Strategy | all | real | synthetic | Δρ vs previous (95% CI) |
 |---|---|---|---|---|
-| Previous site: keyword + gte-small 50/50 | 0.601 / 0.532 / 0.31 | 0.531 / 0.470 / 0.26 | 0.706 / 0.624 / 0.38 | — |
-| Keyword only | 0.417 / 0.389 / 0.27 | 0.269 / 0.279 / 0.19 | 0.639 / 0.555 / 0.38 | -0.184 (-0.246 … -0.119) |
-| New site, before the model loads: keyword + TF-IDF (shown scores) | 0.641 / 0.610 / 0.35 | 0.589 / 0.582 / 0.33 | 0.718 / 0.652 / 0.38 | +0.040 (+0.006 … +0.079) |
-| New site: keyword + TF-IDF + gte-base (shown scores) | 0.683 / 0.646 / 0.36 | 0.645 / 0.628 / 0.35 | 0.740 / 0.674 / 0.39 | +0.082 (+0.052 … +0.117) |
+| Previous site: keyword + gte-small 50/50 | 0.597 / 0.528 / 0.30 | 0.526 / 0.467 / 0.26 | 0.703 / 0.620 / 0.36 | — |
+| Keyword only | 0.415 / 0.389 / 0.26 | 0.268 / 0.277 / 0.18 | 0.637 / 0.558 / 0.38 | -0.181 (-0.245 … -0.116) |
+| New site, before the model loads: keyword + TF-IDF (shown scores) | 0.647 / 0.612 / 0.35 | 0.589 / 0.572 / 0.32 | 0.733 / 0.673 / 0.38 | +0.050 (+0.015 … +0.092) |
+| New site: keyword + TF-IDF + gte-base (shown scores) | 0.685 / 0.647 / 0.36 | 0.637 / 0.619 / 0.34 | 0.758 / 0.688 / 0.39 | +0.089 (+0.060 … +0.122) |
 
-CV weight on keyword for keyword + TF-IDF, per fold: [0.3, 0.3, 0.3, 0.3, 0.3]
+CV weight on keyword for keyword + TF-IDF, per fold: [0.3, 0.4, 0.3, 0.3, 0.3]

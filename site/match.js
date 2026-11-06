@@ -2,7 +2,11 @@
 (function (root) {
   "use strict";
 
-  const STRONG = 68, WEAK = 50;
+  // Tab cut-offs on the shown (calibrated) score, which estimates a hiring manager's 0–100 rating (70+ good fit).
+  // Because it's an estimate, good jobs often show in the low 60s, so a cut at 70 hid most of them. 58 balances
+  // precision and recall against the labels (tools/results/calibration.md): 78% of "Best matches" are at least
+  // a partial fit and half of all good fits land there. "Worth a look" (44+): 61% at least partial, 81% recall.
+  const STRONG = 58, WEAK = 44;
   const SMOOTH = 6; // idf units added to every job's total, so jobs with few listed skills can't score 100
   // Typical minimum years by title level, used when a posting states no number.
   const LEVEL_YEARS = { entry: 0, mid: 2, senior: 5, manager: 6, director: 10 };
@@ -16,7 +20,7 @@
   // A date range on a line like this is a degree, not a job. (No bare "MS"/"BS": they're also state codes.)
   const EDUCATION = /\b(?:university|college|school|bachelor|masters?\b|master's|ph\.?d|mba|degree|gpa|diploma|coursework|b\.tech|m\.tech|[bm]\.s\.|[bm]\.sc)/i;
 
-  function compile(vocab, jobs) {
+  function compile(vocab, jobs, cal) {
     const rx = (p) => new RegExp(p, "i");
     const terms = vocab.terms.map((t) => ({ ...t, rx: rx(t.pattern) }));
     const byId = Object.fromEntries(terms.map((t) => [t.id, t]));
@@ -25,7 +29,7 @@
     const idf = {};
     for (const t of terms) idf[t.id] = Math.log((jobs.length + 1) / ((df[t.id] || 0) + 1)) + 1;
     return {
-      terms, byId, idf, jobs,
+      terms, byId, idf, jobs, cal: cal || null,
       families: vocab.families.map((f) => ({ ...f, rx: new RegExp(f.pattern, "gi") })),
     };
   }
@@ -36,7 +40,11 @@
   }
 
   // Years worked = union of date ranges like "Jan 2019 – Present", skipping degrees and capped at today.
-  function experienceYears(text, now) {
+  function experienceYears(text, now) { return experience(text, now).years; }
+
+  // {years, known}: known = the résumé has job date ranges or says "N years of experience". Public or
+  // anonymised résumés often have neither, and 0 then means "unknown", not "no experience".
+  function experience(text, now) {
     const today = now || new Date();
     const nowYears = today.getFullYear() + today.getMonth() / 12;
     const spans = [];
@@ -62,7 +70,7 @@
       .map((m) => +m[1]).filter((n) => n <= 40);
     // A stated "N years of experience" beats date ranges, which can include school.
     const best = stated.length ? Math.max(...stated) : total;
-    return Math.round(best * 2) / 2;
+    return { years: Math.round(best * 2) / 2, known: stated.length > 0 || spans.length > 0 };
   }
 
   function analyzeResume(ctx, text, now) {
@@ -87,7 +95,8 @@
     }
     const top = Math.max(1, ...Object.values(raw));
     const affinity = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v / top]));
-    return { terms, affinity, years: experienceYears(text, now), chars: text.length };
+    const exp = experience(text, now);
+    return { terms, affinity, years: exp.years, yearsKnown: exp.known, chars: text.length };
   }
 
   function expPoints(job, years) {
@@ -304,11 +313,61 @@
     ids.forEach((id, i) => {
       const s = scores.get(id);
       s.keyword = kw[i];
-      s.score = Math.max(0, Math.min(100, Math.round(mk + sk * (mix[i] - mm) / sm)));
+      s.raw = mk + sk * (mix[i] - mm) / sm;           // unrounded, unclamped: used for ranking and calibration
+      s.score = Math.max(0, Math.min(100, Math.round(s.raw)));
     });
   }
 
+  // After the blend, take points off when the posting asks for more years than the résumé shows. The text
+  // signals ignore seniority, so a strong text match a year or two short could still score 86. Size picked by
+  // 5-fold CV on the eval set (tools/results/exp_penalty.md); larger penalties ranked worse against the labels.
+  // Skipped when the résumé's years are unknown (no dates, no "N years"), unless the visitor typed them in.
+  const EXP_PENALTY = { perYear: 15, cap: 10, fromTitle: 0.5, director: 15 };
+  function experienceAdjust(ctx, profile, scores) {
+    if (!profile.yearsKnown) return;
+    for (const j of ctx.jobs) {
+      const s = scores.get(j.id);
+      if (!s || s.expPenalty != null) continue;
+      const need = j.years != null ? j.years : LEVEL_YEARS[j.seniority] || 0;
+      const gap = need - profile.years;
+      let pen = Math.min(EXP_PENALTY.cap, EXP_PENALTY.perYear * Math.max(0, gap)) * (j.years != null ? 1 : EXP_PENALTY.fromTitle);
+      if (j.seniority === "director" && gap > 2) pen = Math.max(pen, EXP_PENALTY.director);
+      s.expPenalty = pen;
+      s.raw = (s.raw ?? s.score) - pen;
+      s.score = Math.max(0, Math.min(100, Math.round(s.raw)));
+    }
+  }
+
+  // Map the blended score onto the rubric's scale (85+ strong, 70–84 good, 50–69 partial, under 50 poor) with
+  // the table in site/calibration.json, fit on the 1,860 labeled pairs (tools/eval/calibrate.py). Monotone, so
+  // the ranking doesn't change; it only makes the number mean the same thing as a hiring manager's rating.
+  // cal = {x: [raw scores, ascending], y: [rubric scores]}; linear between points, flat beyond the ends.
+  function calibrate(cal, raw) {
+    if (!cal) return raw;
+    const { x, y } = cal;
+    if (raw <= x[0]) return y[0];
+    if (raw >= x[x.length - 1]) return y[y.length - 1];
+    let i = 1;
+    while (x[i] < raw) i++;
+    return y[i - 1] + (y[i] - y[i - 1]) * (raw - x[i - 1]) / (x[i] - x[i - 1]);
+  }
+
+  // Everything after scoreAll: blend in the similarity signals, adjust for experience, calibrate.
+  // s.rank (continuous) orders jobs; s.score (0–100 integer, rubric scale) is what visitors see.
+  function finalize(ctx, profile, scores, signals) {
+    signals = signals || {};
+    blendSignals(scores, signals);
+    experienceAdjust(ctx, profile, scores);
+    // calibration.json has one table per blend: "full" once the AI model has loaded, "lexical" before that.
+    const cal = ctx.cal && (signals.semantic ? ctx.cal.full : ctx.cal.lexical);
+    for (const s of scores.values()) {
+      s.rank = s.raw ?? s.score;
+      s.score = Math.max(0, Math.min(100, Math.round(calibrate(cal, s.rank))));
+    }
+  }
+
   const M = { STRONG, WEAK, compile, analyzeResume, experienceYears, scoreJob, scoreAll, tips, hasSponsorTrack,
-    EMBED_MODEL, chunks, maxSim, blendSignals, buildLexical, loadLexical, lexicalSims };
+    LEVEL_YEARS, EMBED_MODEL, chunks, maxSim, blendSignals, experienceAdjust, calibrate, finalize,
+    buildLexical, loadLexical, lexicalSims };
   if (typeof module !== "undefined" && module.exports) module.exports = M; else root.Match = M;
-})(this);
+})(typeof self !== "undefined" ? self : this);   // window, a worker, or Node

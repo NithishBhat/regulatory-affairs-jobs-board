@@ -1,7 +1,9 @@
 // Score every eval résumé × job with the site's own code (site/match.js + the files in site/), so the
 // evaluation measures exactly what visitors get.
-//   node tools/eval/site_scores.mjs [--no-semantic]
-// Writes cache/general_eval/scores/site_{keyword,lexical,semantic}.json {resume_id: {job_id: value}}.
+//   node tools/eval/site_scores.mjs [--no-semantic] [--reuse-semantic] [--uncalibrated]
+// Writes cache/general_eval/scores/site_{keyword,lexical,semantic,final,shown}.json {resume_id: {job_id: value}}:
+// final = the ranking value (s.rank), shown = the number on the card (calibrated s.score).
+// --reuse-semantic reads site_semantic.json instead of re-embedding the résumés.
 import fs from "node:fs";
 import { createRequire } from "node:module";
 
@@ -14,15 +16,20 @@ const out = (name, data) => fs.writeFileSync(new URL(`cache/general_eval/scores/
 
 const vocab = json("site/vocab.json"), jobs = json("site/jobs.json").jobs;
 const resumes = json("cache/general_eval/resumes.json");
-const ctx = Match.compile(vocab, jobs);
+const calPath = new URL("site/calibration.json", root);
+const ctx = Match.compile(vocab, jobs, process.argv.includes("--uncalibrated") || !fs.existsSync(calPath) ? null : JSON.parse(fs.readFileSync(calPath)));
 const buf = (p) => { const b = read(p); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
 const lex = Match.loadLexical(json("site/lexical.json"), buf("site/lexical.bin"));
 
-// The score a visitor sees (integer, after Match.blendSignals) with the given signals.
+// What a visitor gets (Match.finalize): s.rank orders the jobs, s.score is the shown (calibrated) number.
+// Ranking metrics use rank; --uncalibrated writes rank only (for fitting the calibration).
+const shown = {};
 const final = (r, signals) => {
-  const scores = Match.scoreAll(ctx, Match.analyzeResume(ctx, r.text));
-  Match.blendSignals(scores, signals);
-  return Object.fromEntries([...scores].map(([id, s]) => [id, s.score]));
+  const profile = Match.analyzeResume(ctx, r.text);
+  const scores = Match.scoreAll(ctx, profile);
+  Match.finalize(ctx, profile, scores, signals);
+  shown[r.id] = Object.fromEntries([...scores].map(([id, s]) => [id, s.score]));
+  return Object.fromEntries([...scores].map(([id, s]) => [id, s.rank]));
 };
 
 const kw = {}, lx = {}, fin = {};
@@ -38,7 +45,13 @@ out("lexical", lx);
 out("final_no_semantic", fin);
 console.log(`${resumes.length} résumés × ${jobs.length} jobs: keyword, lexical`);
 
-if (!process.argv.includes("--no-semantic")) {
+if (process.argv.includes("--reuse-semantic")) {
+  const sem = json("cache/general_eval/scores/site_semantic.json"), all = {};
+  for (const r of resumes) all[r.id] = final(r, { lexical: Match.lexicalSims(lex, r.text), semantic: new Map(Object.entries(sem[r.id])) });
+  out("final", all);
+  out("shown", shown);
+  console.log("semantic (reused)");
+} else if (!process.argv.includes("--no-semantic")) {
   const { pipeline } = await import("@huggingface/transformers");
   const meta = json("site/vectors.json"), rows = new Int16Array(buf("site/vectors.bin"));
   const embed = await pipeline("feature-extraction", meta.model, { dtype: "q8" });
@@ -52,5 +65,6 @@ if (!process.argv.includes("--no-semantic")) {
   }
   out("semantic", sem);
   out("final", all);
+  out("shown", shown);
   console.log(`semantic (${meta.model})`);
 }

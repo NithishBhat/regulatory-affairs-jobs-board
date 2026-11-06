@@ -107,6 +107,48 @@ test("blend: keeps the keyword scale, follows the signals", () => {
   assert.equal(scores.get(target).score, top);
 });
 
+test("calibration: monotone, within 0–100, and loaded by the site", () => {
+  const tables = json("site/calibration.json");
+  assert.deepEqual(Object.keys(tables).sort(), ["full", "lexical"]);
+  for (const cal of Object.values(tables)) {
+    assert.equal(cal.x.length, cal.y.length);
+    for (let i = 1; i < cal.y.length; i++) { assert.ok(cal.x[i] > cal.x[i - 1]); assert.ok(cal.y[i] >= cal.y[i - 1]); }
+    let prev = -1;
+    for (let raw = -20; raw <= 150; raw += 0.5) {
+      const v = Match.calibrate(cal, raw);
+      assert.ok(v >= 0 && v <= 100 && v >= prev - 1e-9, `raw ${raw}`);
+      prev = v;
+    }
+    assert.ok(Match.calibrate(cal, 200) < 100, "a perfect 100 isn't reachable");
+  }
+});
+
+test("experience: penalty only when the résumé is short of stated years, and only when years are known", () => {
+  const job = { id: "x", terms: [], family: "QA", seniority: "senior", years: 5 };
+  const c = Match.compile(vocab, [job]);
+  const at = (years, yearsKnown) => {
+    const scores = new Map([["x", { score: 80, raw: 80 }]]);
+    Match.experienceAdjust(c, { years, yearsKnown }, scores);
+    return scores.get("x").score;
+  };
+  assert.equal(at(4, true), 70);       // 1 year short: −10
+  assert.equal(at(1, true), 70);       // capped at −10
+  assert.equal(at(6, true), 80);       // meets it
+  assert.equal(at(0, false), 80);      // years unknown: no penalty
+});
+
+test("finalize: rank orders jobs, score is the calibrated number", () => {
+  const p = Match.analyzeResume({ ...ctx }, RA, NOW);
+  const cctx = Match.compile(vocab, data.jobs, json("site/calibration.json"));
+  const scores = Match.scoreAll(cctx, p);
+  const lex = Match.loadLexical(json("site/lexical.json"), buf("site/lexical.bin"));
+  Match.finalize(cctx, p, scores, { lexical: Match.lexicalSims(lex, RA) });
+  const v = [...scores.values()];
+  assert.ok(v.every((s) => Number.isFinite(s.rank) && Number.isInteger(s.score) && s.score >= 0 && s.score < 100));
+  const byRank = [...v].sort((a, b) => b.rank - a.rank);
+  for (let i = 1; i < byRank.length; i++) assert.ok(byRank[i].score <= byRank[i - 1].score, "shown score follows the ranking");
+});
+
 test("chunks and maxSim", () => {
   const words = Array.from({ length: 400 }, (_, i) => `w${i}`).join(" ");
   assert.equal(Match.chunks(words).length, 3);
