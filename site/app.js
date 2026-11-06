@@ -68,7 +68,6 @@
     S.ctx = Match.compile(vocab, S.jobs);
     S.labels = Object.fromEntries(vocab.families.map((f) => [f.id, f.label]));
     $("trustCount").textContent = data.count.toLocaleString();
-    $("nudgeBtn").addEventListener("click", () => $("file").click());
     $("meta").textContent = `${data.count.toLocaleString()} open roles · updated ${new Date(data.generated).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 
     $("families").innerHTML = vocab.families.map((f) =>
@@ -322,7 +321,6 @@
       `<button role="tab" aria-selected="${id === current[0]}" data-tab="${id}">${label} <span class="count">${l.length}</span></button>`).join("");
     $("tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.limit = PAGE; render(); }));
 
-    $("nudge").hidden = !!S.scores;
     const rows = current[2];
     const active = current[0] === "mine" ? hideActive() : renderActive(f, list.length);
     $("jobs").innerHTML = rows.length ? rows.slice(0, S.limit).map(card).join("")

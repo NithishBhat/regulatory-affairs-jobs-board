@@ -118,11 +118,6 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Active filters above the tabs */
-.nudge { display: flex; align-items: center; gap: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: .88rem;
-  border: 1px dashed var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
-.nudge span { flex: 1; }
-.nudge svg { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.btn.small { font-size: .82rem; padding: 6px 12px; }
 .active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; font-size: .82rem; }
 .fchip { font: inherit; font-size: .8rem; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
   border-radius: 999px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--ink); cursor: pointer; }
