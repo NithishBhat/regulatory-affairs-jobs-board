@@ -123,7 +123,8 @@
     return out;
   }
 
-  function hasSponsorTrack(j) { return j.h1b_ra_qa > 0 || j.cap_exempt; }
+  // Past H-1B filings or cap-exempt employer, and the posting doesn't rule visa holders out.
+  function hasSponsorTrack(j) { return (j.h1b_ra_qa > 0 || j.cap_exempt) && !(j.restrict && j.restrict.length); }
 
   // Advice on widening the search. `jobs` = jobs passing the current filters, `all` = every job.
   function tips(ctx, profile, scores, jobs, all, filters, familyLabels) {

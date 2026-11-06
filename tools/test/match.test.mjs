@@ -79,6 +79,16 @@ test("no non-US jobs in jobs.json", () => {
   assert.deepEqual(bad.map((j) => j.location), []);
 });
 
+test("work-authorization limits: every job has a list; restricted jobs never count as sponsor-track", () => {
+  const kinds = new Set(["citizen", "clearance", "export", "no_sponsor"]);
+  for (const j of data.jobs) {
+    assert.ok(Array.isArray(j.restrict), j.id);
+    for (const k of j.restrict) assert.ok(kinds.has(k), k);
+    if (j.restrict.length) assert.equal(Match.hasSponsorTrack(j), false, j.id);
+  }
+  assert.ok(data.jobs.some((j) => j.restrict.length), "some postings state limits");
+});
+
 test("blend: keeps the keyword scale, follows the signals", () => {
   const p = Match.analyzeResume(ctx, RA, NOW);
   const scores = Match.scoreAll(ctx, p);

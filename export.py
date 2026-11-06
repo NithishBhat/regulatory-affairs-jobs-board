@@ -59,6 +59,56 @@ NON_US = re.compile(r"\b(?:canada|mexico|united kingdom|\buk\b|ireland|germany|f
                     r"czech|hungary|romania|greece|finland|norway|slovakia|slovenia|croatia|serbia|ukraine|"
                     r"belgio|belgique|deutschland|germania|alemania|allemagne|svizzera|schweiz|suisse|"
                     r"nederland|espa[ñn]a|italia|polska|m[ée]xico|brasil)\b", re.I)
+# Who can apply. Requirement wording only: "Work Authorization: US Citizen, Green Card, OPT-EAD, H-1B" (open
+# to visa holders), "US Citizenship Required: No", export-control duties in a trade-compliance job, and
+# "certain positions may require…" boilerplate are not restrictions.
+_US = r"u\.?\s?s\.?|united\s+states|american"
+_Q = r"[\"“”']?"
+RESTRICT = {
+    "citizen": re.compile(
+        rf"(?:must|required\s+to|need\s+to|have\s+to)\s+be\s+(?:an?\s+)?(?:{_US})\s+citizens?(?![\s,]*(?:or\s+|and\s+)?(?:an?\s+)?(?:(?:{_US})\s+)?(?:national|lawful|legal|permanent|green))|"
+        rf"(?:{_US})\s+citizenship\s+(?:is\s+)?(?:required|mandatory|needed)(?!\s*:?\s*no\b)|"
+        rf"requires?\s+(?:\w+\s+){{0,2}}(?:{_US})\s+citizenship|"
+        rf"(?:open|available|limited|restricted)\s+(?:only\s+)?to\s+(?:{_US})\s+citizens|"
+        rf"only\s+(?:{_US})\s+citizens|(?:{_US})\s+citizens\s+only|"
+        # green card / permanent residents only
+        r"green\s*card\s+holders?\s+only|(?:lawful\s+|legal\s+)?permanent\s+residents?\s+only|"
+        rf"(?:{_US})\s+citizens?\s+(?:and|or)\s+(?:lawful\s+|legal\s+)?(?:permanent\s+residents?|green\s*card\s+holders?)\s+only|"
+        rf"must\s+be\s+(?:an?\s+)?(?:{_US})\s+citizen\s+or\s+(?:a\s+)?(?:lawful\s+|legal\s+)?(?:permanent\s+resident|green\s*card\s+holder)", re.I),
+    "clearance": re.compile(
+        r"security\s+clearance|secret\s+clearance|\bts\s*/\s*sci\b|top\s+secret|public\s+trust\s+clearance|"
+        r"(?:dod|government|federal)\s+clearance|clearance\s+(?:is\s+)?required", re.I),
+    "export": re.compile(
+        rf"(?:{_US})\s+person{_Q}\s+status|must\s+be\s+(?:an?\s+)?{_Q}(?:{_US})\s+person|"
+        rf"requires?\s+(?:\w+\s+){{0,3}}{_Q}(?:{_US})\s+person|qualify\s+as\s+(?:an?\s+)?{_Q}(?:{_US})\s+person|"
+        r"\bitar\b[^.]{0,80}(?:requir|restrict|citizen|person|permanent\s+resident)|"
+        r"(?:requir|restrict|citizen|person|permanent\s+resident)[^.]{0,80}\bitar\b|"
+        r"access\s+to\s+(?:\w+\s+){0,3}(?:subject\s+to|controlled\s+(?:by|under))\s+(?:the\s+)?(?:u\.?s\.?\s+)?export\s+controls?|"
+        r"(?:requires?|require|involves?)\s+(?:\w+\s+){0,2}(?:exposure|access)\s+to\s+export[- ]controlled|"
+        r"(?:must|able\s+to)\s+(?:meet|satisfy|comply\s+with)\s+(?:all\s+)?(?:u\.?s\.?\s+)?export[- ]control\s+requirements|"
+        r"eligible\s+to\s+(?:apply\s+for\s+and\s+)?obtain\s+(?:an?\s+|the\s+)?(?:appropriate\s+)?export\s+control\s+license", re.I),
+    "no_sponsor": re.compile(
+        r"(?:not|unable\s+to|cannot|can't|won't|will\s+not)\s+(?:\w+\s+){0,3}sponsor|"
+        r"sponsorship\s+(?:is\s+)?not\s+(?:available|offered|provided)|no\s+(?:visa\s+)?sponsorship|"
+        r"sponsorship\s+available\?\s*no\b|"
+        r"without\s+(?:the\s+need\s+for\s+)?(?:current\s+or\s+future\s+)?(?:visa\s+|employer\s+|work\s+visa\s+)?sponsorship|"
+        r"(?:does|do)\s+not\s+require\s+(?:\w+\s+){0,2}sponsorship", re.I),
+}
+MAYBE = re.compile(r"certain\s+(?:positions|roles)|some\s+(?:positions|roles)|may\s+be\s+subject", re.I)
+
+
+def restrictions(text):
+    """Work-authorization limits a posting states, e.g. ["citizen", "clearance"]."""
+    found = []
+    for kind, rx in RESTRICT.items():
+        for m in rx.finditer(text or ""):
+            # Look back a fixed span, not to the last period: "U.S.C. § 1158" is full of periods.
+            if not MAYBE.search(text[max(0, m.start() - 350): m.end()]):
+                found.append(kind)
+                break
+    return found
+
+
 # European postings put a gender tag in the title: (m/w/d), (h/f), (f/m/x)...
 GENDER_TAG = re.compile(r"\((?:[mwfdhx]\s*/\s*){1,3}[mwfdhx]\)", re.I)
 # "City, Region, SA": a trailing two-letter code after two or more parts is a country, not a US state.
@@ -290,6 +340,7 @@ def main():
             "h1b_ra_qa": ra_qa_filings,
             "h1b_all": all_filings,
             "cap_exempt": bool(CAP_EXEMPT.search(company)),
+            "restrict": restrictions(f"{title}. {r['description'] or ''}"),
         })
 
     states = {} if args.no_check else check_liveness(candidates)

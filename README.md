@@ -36,6 +36,10 @@ never writes there or runs pipeline phases. It rebuilds from scratch on every ru
   off for legitimacy are dropped.
 - It keeps RA / QA / QC / Document Control titles that show a regulated-industry signal (FDA, GMP,
   ISO 13485, pharma …), drops software QA, and drops jobs posted more than 45 days ago (`--max-age`).
+- Each job's `restrict` lists who-can-apply limits stated in the posting: `citizen` (US citizens / green card
+  only), `clearance`, `export` (ITAR/EAR US-person rules), `no_sponsor`. Only requirement wording counts, not
+  EEO or "certain positions may require…" boilerplate. These jobs get a warning badge instead of the H-1B
+  badge, drop out of "H-1B sponsors only", and are hidden by "Open to visa holders".
 - H-1B counts come from public DOL LCA data. No company directory is published, and association
   member lists (AdvaMed, PBOA) never appear on the site.
 

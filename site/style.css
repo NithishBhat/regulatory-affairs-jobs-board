@@ -125,6 +125,7 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
 .badge { font-size: .74rem; padding: 1px 7px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
 .badge.visa { color: var(--accent); border-color: var(--accent); }
 .badge.visa.soft { border-style: dashed; }
+.badge.limit { color: var(--gap); border-color: var(--gap); background: var(--gap-soft); }
 .empty { padding: 32px; text-align: center; color: var(--muted); }
 
 /* Save / Applied / Hide */

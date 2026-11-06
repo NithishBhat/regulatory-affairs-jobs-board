@@ -6,6 +6,19 @@
   const LEVELS = { entry: "Entry", mid: "Mid", senior: "Senior", manager: "Manager / Lead", director: "Director+" };
   const US = /^(?:us|usa|united states(?: of america)?)$/i;
   const GENERIC = new Set(["fda", "audit", "sop"]); // nearly every posting has these; not worth a chip
+  // Work-authorization limits stated in the posting (export.py), most restrictive first.
+  const RESTRICT = {
+    citizen: ["US citizens / green card only", "The posting says only US citizens (or green card holders) can apply"],
+    clearance: ["Security clearance", "Needs a US security clearance, which requires US citizenship"],
+    export: ["US persons only", "Export-controlled work (ITAR/EAR): US citizens, green card holders, asylees or refugees"],
+    no_sponsor: ["No visa sponsorship", "The posting says it won't sponsor a work visa (H-1B etc.)"],
+  };
+  const restricted = (j) => !!(j.restrict && j.restrict.length);
+  function limitBadge(j) {
+    const first = Object.keys(RESTRICT).find((k) => j.restrict.includes(k));
+    const why = j.restrict.map((k) => RESTRICT[k][1]).join(". ");
+    return `<span class="badge limit" title="${esc(why)}">${RESTRICT[first][0]}</span>`;
+  }
   const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
   const SEMANTIC_ON = '<span class="sem on" title="Keyword and word-overlap match blended with meaning-based similarity, computed in your browser">· AI matching on</span>';
   const S = { ctx: null, jobs: [], labels: {}, profile: null, scores: null, tab: "all", limit: PAGE,
@@ -65,6 +78,7 @@
     $("newCount").textContent = S.newIds.size;
     $("newOnlyBox").hidden = !S.hasPrevVisit;
     $("entryCount").textContent = S.jobs.filter(isEntry).length;
+    $("visaOkCount").textContent = S.jobs.filter((j) => !restricted(j)).length;
 
     document.querySelectorAll(".filters input, .filters select").forEach((el) =>
       el.addEventListener(el.type === "search" ? "input" : "change", () => { S.limit = PAGE; render(); }));
@@ -233,6 +247,7 @@
       families: new Set([...document.querySelectorAll("#families input:checked")].map((i) => i.value)),
       level: $("level").value, state: $("state").value, age: +$("age").value,
       remote: $("remote").checked, h1b: $("h1b").checked, entry: $("entry").checked, newOnly: $("newOnly").checked,
+      visaOk: $("visaOk").checked,
     };
   }
 
@@ -245,7 +260,7 @@
       (!f.entry || isEntry(j)) && (!f.newOnly || S.newIds.has(j.id)) &&
       f.families.has(j.family) && (!f.level || j.seniority === f.level) &&
       (!f.state || j.state === f.state || (j.remote && !j.state)) && (!f.remote || j.remote) &&
-      (!f.h1b || Match.hasSponsorTrack(j)) && daysAgo(j.posted) <= f.age &&
+      (!f.h1b || Match.hasSponsorTrack(j)) && (!f.visaOk || !restricted(j)) && daysAgo(j.posted) <= f.age &&
       (!f.q || (j.title + " " + j.company).toLowerCase().includes(f.q)));
   }
 
@@ -328,7 +343,10 @@
     const age = daysAgo(j.posted);
     const role = j.family === "RA" ? "regulatory affairs" : j.family === "QC" ? "quality control" : "quality";
     const li = "https://www.linkedin.com/search/results/people/?keywords=" + encodeURIComponent(`${j.company} ${role} manager`);
-    const visa = j.h1b_ra_qa > 0 ? `<span class="badge visa" title="${j.h1b_ra_qa} H-1B applications for RA/QA roles, DOL FY2024–26">H-1B sponsor</span>`
+    // A stated limit (citizens only, clearance, no sponsorship…) replaces the H-1B badge: the past filings
+    // don't help with this role.
+    const visa = restricted(j) ? limitBadge(j)
+      : j.h1b_ra_qa > 0 ? `<span class="badge visa" title="${j.h1b_ra_qa} H-1B applications for RA/QA roles, DOL FY2024–26">H-1B sponsor</span>`
       : j.cap_exempt ? `<span class="badge visa soft" title="Universities and hospitals can usually sponsor H-1B cap-exempt">May be cap-exempt</span>` : "";
     const posted = age === 0 ? "today" : `${age}d ago`;
     const hire = `<a href="${li}" target="_blank" rel="noopener nofollow" title="LinkedIn people search">Find hiring team</a>`;
@@ -422,6 +440,7 @@
     if (String(f.age) !== AGE_DEFAULT) chips.push(["age", `Posted within ${f.age} days`]);
     if (f.remote) chips.push(["remote", "Remote only"]);
     if (f.h1b) chips.push(["h1b", "H-1B sponsors only"]);
+    if (f.visaOk) chips.push(["visaOk", "Open to visa holders"]);
     if (f.entry) chips.push(["entry", "Entry level / new grad"]);
     if (f.newOnly) chips.push(["newOnly", "New since last visit"]);
     const hidden = S.jobs.filter(isHidden).length;
@@ -448,7 +467,7 @@
     if (!chip && !all) return;
     if (chip) clearFilter(chip.dataset.filter);
     else {
-      ["q", "level", "state", "age", "remote", "h1b", "entry", "newOnly"].forEach((k) => clearFilter(k));
+      ["q", "level", "state", "age", "remote", "h1b", "visaOk", "entry", "newOnly"].forEach((k) => clearFilter(k));
       document.querySelectorAll("#families input").forEach((i) => { i.checked = true; });
     }
     S.limit = PAGE;
