@@ -55,10 +55,6 @@ h3 { font-size: .95rem; }
 .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
 .drop-title { font-weight: 600; }
 .drop-sub { color: var(--muted); font-size: .85rem; }
-textarea { width: 100%; min-height: 140px; margin-top: 10px; padding: 10px; font: inherit; font-size: .85rem;
-  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); resize: vertical; }
-#pasteBtn { margin-top: 6px; }
-#pasteBox .btn { margin-top: 8px; }
 .matched .hero { display: none; }
 .matched main { padding-top: 20px; }
 input.inline { width: 64px; padding: 2px 6px; display: inline; }
@@ -71,7 +67,6 @@ input[type=search], input[type=number], select { font: inherit; font-size: .9rem
   border-radius: 6px; background: var(--surface); color: var(--ink); width: 100%; }
 .btn { font: inherit; font-weight: 600; font-size: .9rem; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent);
   background: var(--accent); color: var(--accent-ink); cursor: pointer; text-decoration: none; white-space: nowrap; display: inline-block; }
-.btn:disabled { opacity: .45; cursor: default; }
 .btn.ghost { background: transparent; color: var(--accent); }
 .link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-decoration: underline; }
 .link.small { font-size: .8rem; }

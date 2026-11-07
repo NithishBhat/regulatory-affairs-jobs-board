@@ -1,6 +1,6 @@
 // Score every eval résumé × job with the site's own code (site/match.js + the files in site/), so the
 // evaluation measures exactly what visitors get.
-//   node tools/eval/site_scores.mjs [--no-semantic] [--reuse-semantic] [--uncalibrated]
+//   node tools/eval/site_scores.mjs [--no-semantic] [--reuse-semantic]
 // Writes cache/general_eval/scores/site_{keyword,lexical,semantic,final,shown}.json {resume_id: {job_id: value}}:
 // final = the ranking value (s.rank), shown = the number on the card (calibrated s.score).
 // --reuse-semantic reads site_semantic.json instead of re-embedding the résumés.
@@ -17,12 +17,12 @@ const out = (name, data) => fs.writeFileSync(new URL(`cache/general_eval/scores/
 const vocab = json("site/vocab.json"), jobs = json("site/jobs.json").jobs;
 const resumes = json("cache/general_eval/resumes.json");
 const calPath = new URL("site/calibration.json", root);
-const ctx = Match.compile(vocab, jobs, process.argv.includes("--uncalibrated") || !fs.existsSync(calPath) ? null : JSON.parse(fs.readFileSync(calPath)));
+const ctx = Match.compile(vocab, jobs, fs.existsSync(calPath) ? JSON.parse(fs.readFileSync(calPath)) : null);
 const buf = (p) => { const b = read(p); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
 const lex = Match.loadLexical(json("site/lexical.json"), buf("site/lexical.bin"));
 
 // What a visitor gets (Match.finalize): s.rank orders the jobs, s.score is the shown (calibrated) number.
-// Ranking metrics use rank; --uncalibrated writes rank only (for fitting the calibration).
+// Ranking metrics and the calibration fit use rank, which doesn't depend on the calibration.
 const shown = {};
 const final = (r, signals) => {
   const profile = Match.analyzeResume(ctx, r.text);

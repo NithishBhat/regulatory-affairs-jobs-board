@@ -76,6 +76,7 @@
     const states = [...new Set(S.jobs.map((j) => j.state).filter(Boolean))].sort();
     $("state").insertAdjacentHTML("beforeend", states.map((s) => `<option>${s}</option>`).join(""));
 
+    resetFilters();                                   // never start with filters left over from a Back
     $("newCount").textContent = S.newIds.size;
     $("newOnlyBox").hidden = !S.hasPrevVisit;
     $("entryCount").textContent = S.jobs.filter(isEntry).length;
@@ -95,14 +96,6 @@
     ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
     ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("over")));
     drop.addEventListener("drop", (e) => { e.preventDefault(); e.dataTransfer.files[0] && readFile(e.dataTransfer.files[0]); });
-    $("pasteBtn").addEventListener("click", () => { $("pasteBox").hidden = false; $("pasteBtn").hidden = true; $("paste").focus(); });
-    $("paste").addEventListener("input", () => { S.text = $("paste").value; $("matchBtn").disabled = S.text.trim().length < 200; });
-    $("matchBtn").addEventListener("click", async () => {
-      S.years = null;
-      status("Matching you to 900+ jobs…", false, true);
-      await nextPaint();
-      runMatch();
-    });
 
     // Profile summary controls (rendered later), delegated.
     $("profile").addEventListener("click", (e) => {
@@ -135,13 +128,13 @@
       if (name.endsWith(".pdf")) S.text = await pdfText(await f.arrayBuffer());
       else if (name.endsWith(".docx")) S.text = (await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() })).value;
       else S.text = await f.text();
-      if (S.text.trim().length < 200) return status("Couldn't find much text in that file. If it's a scanned PDF, paste the text instead.", true);
+      if (S.text.trim().length < 200) return status("Couldn't find much text in that file. If it's a scanned PDF, try a Word (DOCX) or TXT copy.", true);
       S.years = null;
       status("Matching you to 900+ jobs…", false, true);
       await nextPaint();                                  // show the message before the matching work starts
       runMatch();
     } catch (err) {
-      status("Couldn't read that file. Try another format or paste the text.", true);
+      status("Couldn't read that file. Try a PDF, Word (DOCX) or TXT copy.", true);
       console.error(err);
     }
   }
@@ -258,8 +251,7 @@
   function clearResume() {
     Object.assign(S, { profile: null, scores: null, text: "", years: null, tab: "all", limit: PAGE, showSkills: false,
       showAllTips: false, sims: null, simsText: "", lexSims: null, lexText: "", semantic: null, semRun: S.semRun + 1 });
-    $("paste").value = ""; $("pasteBox").hidden = true; $("pasteBtn").hidden = false; $("file").value = "";
-    $("matchBtn").disabled = true;
+    $("file").value = "";
     $("profile").hidden = true; $("tips").hidden = true;
     document.body.classList.remove("matched");
     render();
@@ -356,9 +348,11 @@
     $("tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.limit = PAGE; render(); }));
 
     const rows = current[2];
-    const active = current[0] === "mine" ? hideActive() : renderActive(f, list.length);
+    const mineTab = current[0] === "mine";
+    if (mineTab) $("active").hidden = true;
+    const active = mineTab ? 0 : renderActive(f, list.length);
     $("jobs").innerHTML = rows.length ? rows.slice(0, S.limit).map(card).join("")
-      : `<li class="empty">${current[0] === "mine" ? "Nothing saved yet. Click the ☆ on a job to keep it here."
+      : `<li class="empty">${mineTab ? "Nothing saved yet. Click the ☆ on a job to keep it here."
         : active ? 'No jobs here with these filters. <button type="button" class="link" data-act="clear-filters">Clear all filters</button>'
         : "No jobs in this tab. Try the other tabs."}</li>`;
     $("more").hidden = rows.length <= S.limit;
@@ -459,12 +453,6 @@
       .map(([id, m]) => byId.get(id) || { ...m.job, id, gone: true });
   }
 
-  function hideActive() { $("active").hidden = true; return 0; }
-
-  // Close an open Hide menu when clicking anywhere else.
-  document.addEventListener("click", (e) => {
-    document.querySelectorAll(".hide-menu[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
-  });
 
   $("jobs").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-do]");
@@ -506,6 +494,11 @@
     return chips.length;
   }
 
+  function resetFilters() {
+    ["q", "level", "state", "age", "remote", "h1b", "visaOk", "entry", "newOnly"].forEach((k) => clearFilter(k));
+    document.querySelectorAll("#families input").forEach((i) => { i.checked = true; });
+  }
+
   function clearFilter(k) {
     if (k === "q") $("q").value = "";
     else if (k.startsWith("fam:")) document.querySelector(`#families input[value="${k.slice(4)}"]`).checked = true;
@@ -516,14 +509,12 @@
   }
 
   document.addEventListener("click", (e) => {
+    // Close an open Hide menu when clicking anywhere else.
+    document.querySelectorAll(".hide-menu[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
     const chip = e.target.closest("[data-filter]");
     const all = e.target.closest('[data-act="clear-filters"]');
     if (!chip && !all) return;
-    if (chip) clearFilter(chip.dataset.filter);
-    else {
-      ["q", "level", "state", "age", "remote", "h1b", "visaOk", "entry", "newOnly"].forEach((k) => clearFilter(k));
-      document.querySelectorAll("#families input").forEach((i) => { i.checked = true; });
-    }
+    if (chip) clearFilter(chip.dataset.filter); else resetFilters();
     S.limit = PAGE;
     render();
   });
